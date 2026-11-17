@@ -1,0 +1,2770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MONOPOLY: Grand Edition — Gemini AI & Multiplayer</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Canvas Confetti CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Montserrat:wght@700;800;900&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Montserrat', 'sans-serif'],
+                    },
+                    colors: {
+                        board: {
+                            bg: '#cde6d0',
+                            border: '#1e293b',
+                            brown: '#955436',
+                            lightblue: '#aae0fa',
+                            pink: '#d93a96',
+                            orange: '#f7941d',
+                            red: '#ed1b24',
+                            yellow: '#fef200',
+                            green: '#1fb25a',
+                            darkblue: '#0072bb',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            overflow-x: hidden;
+        }
+
+        /* 11x11 Classic Monopoly Board Grid */
+        .monopoly-board {
+            display: grid;
+            grid-template-columns: 1.55fr repeat(9, 1fr) 1.55fr;
+            grid-template-rows: 1.55fr repeat(9, 1fr) 1.55fr;
+            aspect-ratio: 1 / 1;
+            width: 100%;
+            max-width: min(88vh, 880px);
+            background-color: #cde6d0;
+            border: 4px solid #0f172a;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.75);
+            position: relative;
+        }
+
+        .board-space {
+            border: 1px solid #1e293b;
+            background-color: #e4f1e6;
+            color: #0f172a;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            overflow: hidden;
+            cursor: pointer;
+            transition: filter 0.15s ease, transform 0.1s ease;
+        }
+
+        .board-space:hover {
+            filter: brightness(0.95);
+            z-index: 15;
+            box-shadow: inset 0 0 0 2px #2563eb;
+        }
+
+        .board-space.mortgaged {
+            background-color: #cbd5e1;
+            opacity: 0.85;
+        }
+
+        .board-space.mortgaged::after {
+            content: 'MORTGAGED';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-30deg);
+            background: rgba(220, 38, 38, 0.88);
+            color: white;
+            font-size: 0.5rem;
+            font-weight: 800;
+            padding: 1px 4px;
+            border-radius: 2px;
+            pointer-events: none;
+            z-index: 5;
+            letter-spacing: 0.05em;
+        }
+
+        /* Center Hub */
+        .board-center {
+            grid-column: 2 / 11;
+            grid-row: 2 / 11;
+            background: radial-gradient(circle at center, #dcfce7 0%, #bbf7d0 65%, #a7f3d0 100%);
+            border: 2px solid #1e293b;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            padding: 3%;
+            position: relative;
+        }
+
+        /* Color Bars based on board side */
+        .color-bar-bottom { height: 22%; width: 100%; border-bottom: 1.5px solid #1e293b; display: flex; align-items: center; justify-content: center; gap: 2px; }
+        .color-bar-top    { height: 22%; width: 100%; border-top: 1.5px solid #1e293b; order: 3; display: flex; align-items: center; justify-content: center; gap: 2px; }
+        .color-bar-left   { width: 22%; height: 100%; border-left: 1.5px solid #1e293b; order: 3; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+        .color-bar-right  { width: 22%; height: 100%; border-right: 1.5px solid #1e293b; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+
+        .space-side-left, .space-side-right {
+            flex-direction: row;
+        }
+
+        .space-text {
+            font-size: clamp(0.42rem, 0.72vw, 0.65rem);
+            line-height: 1.05;
+            font-weight: 700;
+            text-align: center;
+            padding: 2px;
+            text-transform: uppercase;
+            word-break: break-word;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            flex: 1;
+        }
+
+        /* Ownership Dot */
+        .owner-badge {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            border-radius: 9999px;
+            border: 1.5px solid #ffffff;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.6);
+            z-index: 6;
+        }
+
+        /* Building Icons */
+        .house-pip {
+            width: 7px;
+            height: 7px;
+            background-color: #16a34a;
+            border: 1px solid #052e16;
+            border-radius: 1px;
+        }
+        .hotel-pip {
+            width: 12px;
+            height: 8px;
+            background-color: #dc2626;
+            border: 1px solid #450a0a;
+            border-radius: 2px;
+        }
+
+        /* Player Token Animation */
+        .player-token {
+            transition: all 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+            filter: drop-shadow(0 3px 4px rgba(0,0,0,0.5));
+        }
+
+        /* 3D Dice Styling */
+        .die-box {
+            width: 52px;
+            height: 52px;
+            background: linear-gradient(145deg, #ffffff, #e2e8f0);
+            border-radius: 10px;
+            box-shadow: 0 6px 12px rgba(0,0,0,0.35), inset 0 -3px 0 #cbd5e1;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            padding: 7px;
+            gap: 2px;
+            transition: transform 0.2s ease;
+        }
+        .die-rolling {
+            animation: diceShake 0.45s infinite ease-in-out;
+        }
+        @keyframes diceShake {
+            0% { transform: rotate(0deg) scale(1.08); }
+            25% { transform: rotate(-16deg) scale(1.14); }
+            50% { transform: rotate(14deg) scale(1.08); }
+            75% { transform: rotate(-10deg) scale(1.12); }
+            100% { transform: rotate(0deg) scale(1.08); }
+        }
+        .pip {
+            background-color: #0f172a;
+            border-radius: 50%;
+            width: 9px;
+            height: 9px;
+            margin: auto;
+        }
+        .pip.red {
+            background-color: #dc2626;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #1e293b; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+        /* Title Deed Card Diagonal Banner */
+        .monopoly-logo-banner {
+            transform: rotate(-45deg);
+            background: #dc2626;
+            color: #ffffff;
+            border: 3px solid #ffffff;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+            letter-spacing: 0.14em;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col font-sans antialiased selection:bg-emerald-500 selection:text-white">
+
+    <!-- TOP NAVIGATION & API KEY BAR -->
+    <header class="bg-slate-900/95 border-b border-slate-800 px-4 py-2.5 sticky top-0 z-40 backdrop-blur-md">
+        <div class="max-w-[1600px] mx-auto flex flex-wrap items-center justify-between gap-3">
+            <!-- Brand -->
+            <div class="flex items-center gap-3">
+                <div class="bg-red-600 text-white font-display font-black tracking-widest px-3 py-1 rounded border-2 border-white shadow-md text-sm sm:text-base">
+                    MONOPOLY
+                </div>
+                <div class="hidden sm:flex flex-col">
+                    <span class="text-xs font-bold text-emerald-400 uppercase tracking-wider">Grand Edition</span>
+                    <span class="text-[11px] text-slate-400">Classic Engine + Adaptive Gemini AI</span>
+                </div>
+            </div>
+
+            <!-- Gemini API Key Bar -->
+            <div class="flex items-center gap-2 flex-1 max-w-xl">
+                <div class="relative flex-1">
+                    <div class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+                        <i data-lucide="sparkles" class="w-4 h-4 text-amber-400"></i>
+                    </div>
+                    <input type="password" id="globalGeminiKey" placeholder="Enter Gemini API Key here (optional — enables live LLM AI bot)..."
+                        class="w-full bg-slate-800/90 border border-slate-700 focus:border-emerald-500 rounded-lg pl-8 pr-16 py-1.5 text-xs text-slate-100 placeholder-slate-400 outline-none transition"
+                        onchange="saveGeminiKey(this.value)" oninput="saveGeminiKey(this.value)">
+                    <button type="button" onclick="toggleKeyVisibility()" class="absolute inset-y-0 right-2 flex items-center text-[11px] text-slate-400 hover:text-white">
+                        Show
+                    </button>
+                </div>
+                <span id="aiModeBadge" class="whitespace-nowrap px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span>
+                    Heuristic AI
+                </span>
+            </div>
+
+            <!-- Quick Controls -->
+            <div class="flex items-center gap-2">
+                <button onclick="toggleSound()" id="soundBtn" title="Toggle Sound Effects" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition">
+                    <i data-lucide="volume-2" class="w-4 h-4"></i>
+                </button>
+                <button onclick="openSetupModal()" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow transition">
+                    <i data-lucide="settings-2" class="w-4 h-4"></i>
+                    <span>New Game / Setup</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN GAME WORKSPACE -->
+    <main class="flex-1 max-w-[1600px] w-full mx-auto p-2 sm:p-4 grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+
+        <!-- LEFT COLUMN: PLAYERS ROSTER & PROPERTY PORTFOLIO (3 cols) -->
+        <aside class="lg:col-span-3 flex flex-col gap-3 order-2 lg:order-1">
+            <!-- Players Status Cards -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 shadow-xl">
+                <div class="flex items-center justify-between mb-2.5">
+                    <h2 class="text-xs font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                        <i data-lucide="users" class="w-4 h-4 text-emerald-400"></i> Players & Net Worth
+                    </h2>
+                    <span id="turnCounterBadge" class="text-[11px] font-semibold bg-slate-800 text-slate-300 px-2 py-0.5 rounded">Turn 1</span>
+                </div>
+                <div id="playersList" class="space-y-2">
+                    <!-- Populated via JS -->
+                </div>
+            </div>
+
+            <!-- Active Player Action Controls -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-3.5 shadow-xl">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-xs font-extrabold uppercase tracking-wider text-slate-400">Turn Controls</span>
+                    <span id="activeTurnIndicator" class="text-xs font-bold text-emerald-400">Waiting to start...</span>
+                </div>
+
+                <!-- Action Buttons Grid -->
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="btnRollDice" onclick="handleRollDice()" disabled
+                        class="col-span-2 py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-display font-extrabold text-sm tracking-wide shadow-lg flex items-center justify-center gap-2 transition transform active:scale-95">
+                        <i data-lucide="dices" class="w-5 h-5"></i> ROLL DICE
+                    </button>
+
+                    <button id="btnManageProps" onclick="openManageModal()" disabled
+                        class="py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-100 text-xs font-bold border border-slate-700 flex items-center justify-center gap-1.5 transition">
+                        <i data-lucide="home" class="w-3.5 h-3.5 text-amber-400"></i> Build / Mortgage
+                    </button>
+
+                    <button id="btnTrade" onclick="openTradeModal()" disabled
+                        class="py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-100 text-xs font-bold border border-slate-700 flex items-center justify-center gap-1.5 transition">
+                        <i data-lucide="arrow-left-right" class="w-3.5 h-3.5 text-sky-400"></i> Trade
+                    </button>
+
+                    <button id="btnPayJail" onclick="handlePayJailFine()" class="hidden col-span-2 py-2 px-3 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition">
+                        <i data-lucide="key-round" class="w-4 h-4"></i> Pay $50 Bail to Leave Jail
+                    </button>
+
+                    <button id="btnUseJailCard" onclick="handleUseJailCard()" class="hidden col-span-2 py-2 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition">
+                        <i data-lucide="ticket" class="w-4 h-4"></i> Use Get Out of Jail Free Card
+                    </button>
+
+                    <button id="btnEndTurn" onclick="handleEndTurn()" disabled
+                        class="col-span-2 py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs uppercase tracking-wider shadow flex items-center justify-center gap-1.5 transition">
+                        <i data-lucide="check-circle-2" class="w-4 h-4"></i> End Turn
+                    </button>
+                </div>
+
+                <!-- Debt Resolution Alert Box -->
+                <div id="debtBanner" class="hidden mt-3 p-3 rounded-lg bg-red-950/80 border border-red-500/60 text-red-200 text-xs">
+                    <div class="font-bold text-red-400 flex items-center gap-1.5 mb-1">
+                        <i data-lucide="alert-triangle" class="w-4 h-4"></i> Insufficient Funds!
+                    </div>
+                    <p id="debtMessage" class="mb-2 text-[11px]">You owe $0. Sell houses, mortgage properties, or trade to raise cash.</p>
+                    <div class="flex gap-2">
+                        <button onclick="retryDebtPayment()" class="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded text-[11px]">Pay Debt Now</button>
+                        <button onclick="declareBankruptcy()" class="py-1.5 px-2.5 bg-red-700 hover:bg-red-600 text-white font-bold rounded text-[11px]">Bankrupt</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Selected / Hovered Property Title Deed Preview -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 shadow-xl">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-extrabold uppercase tracking-wider text-slate-400">Title Deed Inspector</span>
+                    <span class="text-[10px] text-slate-500">Click any board space</span>
+                </div>
+                <div id="deedInspector" class="bg-slate-100 text-slate-900 rounded-lg p-3 border-2 border-slate-800 shadow-inner min-h-[210px] flex flex-col justify-between">
+                    <div class="text-center text-slate-500 text-xs my-auto py-8">
+                        Click or hover any property on the board to inspect its rent schedule, mortgage value, and owner.
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- CENTER COLUMN: 40-SPACE CLASSIC MONOPOLY BOARD (6 cols) -->
+        <section class="lg:col-span-6 flex flex-col items-center justify-center order-1 lg:order-2">
+            <div id="monopolyBoard" class="monopoly-board rounded-lg select-none">
+                <!-- 40 Spaces & Center Hub rendered dynamically by JS -->
+            </div>
+        </section>
+
+        <!-- RIGHT COLUMN: AI BRAIN TELEMETRY & LIVE GAME LOG (3 cols) -->
+        <aside class="lg:col-span-3 flex flex-col gap-3 order-3">
+            <!-- Gemini AI Thought & Strategy Box -->
+            <div class="bg-slate-900 border border-indigo-500/40 rounded-xl p-3.5 shadow-xl">
+                <div class="flex items-center justify-between mb-2">
+                    <h2 class="text-xs font-extrabold uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
+                        <i data-lucide="cpu" class="w-4 h-4"></i> AI Neural Strategy Engine
+                    </h2>
+                    <span id="aiThinkingSpinner" class="hidden text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full animate-pulse font-semibold">
+                        Thinking...
+                    </span>
+                </div>
+                <div id="aiThoughtBox" class="bg-slate-950/80 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-300 min-h-[84px] max-h-[130px] overflow-y-auto leading-relaxed">
+                    <span class="text-slate-500 italic">AI strategic analysis & Gemini table talk will stream here during bot turns...</span>
+                </div>
+            </div>
+
+            <!-- House Rules & Free Parking Pot -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 shadow-xl flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <div class="p-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400">
+                        <i data-lucide="car" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                        <div class="text-[11px] font-bold text-slate-400 uppercase">Free Parking Pot</div>
+                        <div id="freeParkingPotDisplay" class="text-sm font-extrabold text-amber-400">$0</div>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <div class="text-[10px] text-slate-400">Active Rules</div>
+                    <div id="activeRulesSummary" class="text-[11px] font-semibold text-emerald-400">Classic Standard</div>
+                </div>
+            </div>
+
+            <!-- Activity & Transaction Log -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-3.5 shadow-xl flex-1 flex flex-col min-h-[340px] max-h-[520px]">
+                <div class="flex items-center justify-between mb-2">
+                    <h2 class="text-xs font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                        <i data-lucide="scroll-text" class="w-4 h-4 text-emerald-400"></i> Live Game Feed
+                    </h2>
+                    <button onclick="clearLog()" class="text-[10px] text-slate-500 hover:text-slate-300">Clear</button>
+                </div>
+                <div id="gameLog" class="flex-1 overflow-y-auto space-y-1.5 pr-1 text-xs font-medium">
+                    <!-- Log entries -->
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <!-- ===================================================================== -->
+    <!-- MODALS                                                                -->
+    <!-- ===================================================================== -->
+
+    <!-- 1. PRE-GAME SETUP MODAL -->
+    <div id="setupModal" class="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 overflow-y-auto">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl my-auto">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-4 mb-4">
+                <div>
+                    <span class="bg-red-600 text-white font-display font-black px-2.5 py-0.5 rounded text-xs tracking-widest border border-white">MONOPOLY</span>
+                    <h1 class="text-xl sm:text-2xl font-display font-extrabold text-white mt-1">Match Configuration</h1>
+                </div>
+                <button onclick="closeSetupModal()" id="closeSetupBtn" class="hidden text-slate-400 hover:text-white p-1">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="space-y-4">
+                <!-- Gemini API Key Setting -->
+                <div class="bg-slate-950/70 border border-indigo-500/30 rounded-xl p-3.5">
+                    <label class="block text-xs font-bold text-indigo-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                        <i data-lucide="sparkles" class="w-4 h-4 text-amber-400"></i> Enter Gemini API Key Here (Optional)
+                    </label>
+                    <input type="password" id="modalGeminiKey" placeholder="AIzaSy... (Leave blank to use built-in Critical-Value Heuristic AI)"
+                        class="w-full bg-slate-900 border border-slate-700 focus:border-indigo-500 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 outline-none"
+                        oninput="saveGeminiKey(this.value)">
+                    <p class="text-[11px] text-slate-400 mt-1.5">
+                        When provided, AI bots query <code class="text-indigo-300">gemini-2.5-flash</code> for property acquisitions, auctions, trades, and live commentary. Without a key, our deterministic EV/ROI heuristic engine plays at master level offline.
+                    </p>
+                </div>
+
+                <!-- Game Mode Preset Selector -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Player Lineup & Mode</label>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2" id="modePresets">
+                        <button type="button" onclick="applyModePreset('1H_1AI')" data-preset="1H_1AI" class="preset-btn p-2.5 rounded-xl border border-emerald-500 bg-emerald-500/15 text-left transition">
+                            <div class="text-xs font-extrabold text-white">1 Human vs 1 AI Bot</div>
+                            <div class="text-[11px] text-slate-400">Fast-paced 1v1 strategic duel</div>
+                        </button>
+                        <button type="button" onclick="applyModePreset('1H_3AI')" data-preset="1H_3AI" class="preset-btn p-2.5 rounded-xl border border-slate-700 bg-slate-800/60 hover:border-slate-500 text-left transition">
+                            <div class="text-xs font-extrabold text-white">1 Human vs 3 AI Bots (4P)</div>
+                            <div class="text-[11px] text-slate-400">Full classic 4-player AI table</div>
+                        </button>
+                        <button type="button" onclick="applyModePreset('2H_1AI')" data-preset="2H_1AI" class="preset-btn p-2.5 rounded-xl border border-slate-700 bg-slate-800/60 hover:border-slate-500 text-left transition">
+                            <div class="text-xs font-extrabold text-white">2 Humans + 1 AI Bot (3P)</div>
+                            <div class="text-[11px] text-slate-400">Pass & play plus AI rival</div>
+                        </button>
+                        <button type="button" onclick="applyModePreset('2H_2AI')" data-preset="2H_2AI" class="preset-btn p-2.5 rounded-xl border border-slate-700 bg-slate-800/60 hover:border-slate-500 text-left transition">
+                            <div class="text-xs font-extrabold text-white">2 Humans + 2 AI Bots (4P)</div>
+                            <div class="text-[11px] text-slate-400">Doubles table showdown</div>
+                        </button>
+                        <button type="button" onclick="applyModePreset('3H_1AI')" data-preset="3H_1AI" class="preset-btn p-2.5 rounded-xl border border-slate-700 bg-slate-800/60 hover:border-slate-500 text-left transition">
+                            <div class="text-xs font-extrabold text-white">3 Humans + 1 AI Bot (4P)</div>
+                            <div class="text-[11px] text-slate-400">Three friends vs Gemini AI</div>
+                        </button>
+                        <button type="button" onclick="applyModePreset('LOCAL_MULTI')" data-preset="LOCAL_MULTI" class="preset-btn p-2.5 rounded-xl border border-slate-700 bg-slate-800/60 hover:border-slate-500 text-left transition">
+                            <div class="text-xs font-extrabold text-white">2–4 Local Humans Only</div>
+                            <div class="text-[11px] text-slate-400">Customize each slot manually</div>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Custom Player Slots Editor -->
+                <div class="bg-slate-950/60 border border-slate-800 rounded-xl p-3">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-bold text-slate-300 uppercase tracking-wider">Player Roster</span>
+                        <button type="button" onclick="addPlayerSlot()" id="btnAddSlot" class="text-[11px] font-bold text-emerald-400 hover:text-emerald-300">+ Add Player (Max 4)</button>
+                    </div>
+                    <div id="setupSlotsContainer" class="space-y-2">
+                        <!-- Dynamically rendered slots -->
+                    </div>
+                </div>
+
+                <!-- Turn Order & House Rules -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">First Move Priority</label>
+                        <select id="turnOrderSelect" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white outline-none">
+                            <option value="HUMAN_FIRST">Human Moves First</option>
+                            <option value="AI_FIRST">AI Bot Moves First</option>
+                            <option value="ROLL_DICE">Roll Dice for Turn Order</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Starting Cash</label>
+                        <select id="startingCashSelect" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white outline-none">
+                            <option value="1500" selected>$1,500 (Official Classic)</option>
+                            <option value="2000">$2,000 (Fast Economy)</option>
+                            <option value="1000">$1,000 (Hardcore)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- House Rules Toggles -->
+                <div class="flex flex-wrap gap-4 pt-1">
+                    <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                        <input type="checkbox" id="ruleFreeParking" class="rounded accent-emerald-500 w-4 h-4">
+                        <span>Free Parking Jackpot (Collects Taxes & Fines)</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                        <input type="checkbox" id="ruleDoubleGo" class="rounded accent-emerald-500 w-4 h-4">
+                        <span>Land on GO pays $400</span>
+                    </label>
+                </div>
+
+                <button type="button" onclick="startNewGame()"
+                    class="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-display font-black text-sm tracking-wider uppercase shadow-lg transition transform active:scale-98">
+                    Launch Monopoly Game
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. BUY PROPERTY DECISION MODAL -->
+    <div id="buyModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-5 shadow-2xl">
+            <h3 class="text-lg font-display font-extrabold text-white text-center mb-1">Unowned Property!</h3>
+            <p id="buyModalSubtitle" class="text-xs text-slate-400 text-center mb-4">Would you like to purchase this deed or send it to auction?</p>
+            <div id="buyModalDeedCard" class="mb-4"></div>
+            <div class="grid grid-cols-2 gap-3">
+                <button id="btnConfirmBuy" onclick="confirmBuyProperty()" class="py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs uppercase tracking-wider shadow transition">
+                    Buy Property
+                </button>
+                <button onclick="declineBuyToAuction()" class="py-2.5 px-4 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs uppercase tracking-wider shadow transition">
+                    Auction ($10+)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. INTERACTIVE AUCTION MODAL -->
+    <div id="auctionModal" class="hidden fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-amber-500/50 rounded-2xl max-w-lg w-full p-5 shadow-2xl">
+            <div class="flex items-center justify-between mb-3">
+                <span class="px-2.5 py-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-extrabold uppercase tracking-wider flex items-center gap-1.5">
+                    <i data-lucide="gavel" class="w-4 h-4"></i> Live Property Auction
+                </span>
+                <span id="auctionPropPriceTag" class="text-xs text-slate-400">List Price: $200</span>
+            </div>
+
+            <div id="auctionPropBanner" class="p-3 rounded-xl bg-slate-800 border border-slate-700 text-center mb-4">
+                <div id="auctionPropName" class="text-base font-display font-extrabold text-white">Boardwalk</div>
+                <div class="mt-2 flex items-center justify-center gap-4">
+                    <div>
+                        <div class="text-[10px] uppercase text-slate-400">Current Highest Bid</div>
+                        <div id="auctionHighBid" class="text-2xl font-display font-black text-emerald-400">$10</div>
+                    </div>
+                    <div class="h-8 w-px bg-slate-700"></div>
+                    <div>
+                        <div class="text-[10px] uppercase text-slate-400">Leading Bidder</div>
+                        <div id="auctionHighBidder" class="text-sm font-bold text-amber-300">None</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="auctionBiddersList" class="space-y-2 mb-4">
+                <!-- Active bidders status -->
+            </div>
+
+            <div id="auctionHumanControls" class="border-t border-slate-800 pt-3">
+                <div id="auctionTurnPrompt" class="text-xs font-bold text-center text-sky-400 mb-2">Your turn to bid!</div>
+                <div class="grid grid-cols-4 gap-2">
+                    <button onclick="submitAuctionBid(10)" class="py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs">+$10</button>
+                    <button onclick="submitAuctionBid(50)" class="py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs">+$50</button>
+                    <button onclick="submitAuctionBid(100)" class="py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs">+$100</button>
+                    <button onclick="passAuctionBid()" class="py-2 rounded-lg bg-rose-700 hover:bg-rose-600 text-white font-bold text-xs">Pass</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. PROPERTY MANAGEMENT (BUILD / MORTGAGE) MODAL -->
+    <div id="manageModal" class="hidden fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full p-5 shadow-2xl max-h-[88vh] flex flex-col">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-3">
+                <div>
+                    <h3 class="text-lg font-display font-extrabold text-white">Real Estate Portfolio</h3>
+                    <p class="text-xs text-slate-400">Build houses/hotels evenly across monopolies or mortgage deeds for cash.</p>
+                </div>
+                <button onclick="closeManageModal()" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div id="managePropertiesList" class="flex-1 overflow-y-auto space-y-2 pr-1">
+                <!-- Populated dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 5. PLAYER & AI TRADING MODAL -->
+    <div id="tradeModal" class="hidden fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-3xl w-full p-5 shadow-2xl max-h-[90vh] flex flex-col">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-3">
+                <h3 class="text-lg font-display font-extrabold text-white flex items-center gap-2">
+                    <i data-lucide="arrow-left-right" class="w-5 h-5 text-sky-400"></i> Propose Trade Deal
+                </h3>
+                <button onclick="closeTradeModal()" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="mb-3">
+                <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Select Trading Partner</label>
+                <select id="tradePartnerSelect" onchange="renderTradeBuilder()" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white outline-none"></select>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 overflow-y-auto pr-1">
+                <!-- Offer Side -->
+                <div class="bg-slate-950/70 border border-emerald-500/30 rounded-xl p-3">
+                    <h4 id="tradeOfferHeader" class="text-xs font-extrabold text-emerald-400 uppercase mb-2">You Offer</h4>
+                    <div class="mb-2">
+                        <label class="text-[11px] text-slate-400">Cash Offer ($)</label>
+                        <input type="number" id="tradeOfferCash" min="0" value="0" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white mt-0.5">
+                    </div>
+                    <div id="tradeOfferJailCardWrap" class="hidden mb-2">
+                        <label class="flex items-center gap-2 text-xs text-amber-300 cursor-pointer">
+                            <input type="checkbox" id="tradeOfferJailCard" class="accent-emerald-500">
+                            <span>Include Get Out of Jail Free Card</span>
+                        </label>
+                    </div>
+                    <div class="text-[11px] text-slate-400 mb-1">Select Properties to Give:</div>
+                    <div id="tradeOfferProps" class="space-y-1 max-h-44 overflow-y-auto"></div>
+                </div>
+
+                <!-- Request Side -->
+                <div class="bg-slate-950/70 border border-sky-500/30 rounded-xl p-3">
+                    <h4 id="tradeRequestHeader" class="text-xs font-extrabold text-sky-400 uppercase mb-2">You Request</h4>
+                    <div class="mb-2">
+                        <label class="text-[11px] text-slate-400">Cash Request ($)</label>
+                        <input type="number" id="tradeRequestCash" min="0" value="0" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white mt-0.5">
+                    </div>
+                    <div id="tradeRequestJailCardWrap" class="hidden mb-2">
+                        <label class="flex items-center gap-2 text-xs text-amber-300 cursor-pointer">
+                            <input type="checkbox" id="tradeRequestJailCard" class="accent-sky-500">
+                            <span>Request Get Out of Jail Free Card</span>
+                        </label>
+                    </div>
+                    <div class="text-[11px] text-slate-400 mb-1">Select Properties to Receive:</div>
+                    <div id="tradeRequestProps" class="space-y-1 max-h-44 overflow-y-auto"></div>
+                </div>
+            </div>
+
+            <div class="mt-4 pt-3 border-t border-slate-800 flex justify-end gap-2">
+                <button onclick="closeTradeModal()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300">Cancel</button>
+                <button onclick="submitTradeProposal()" class="px-5 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-xs font-extrabold text-white shadow">Send Trade Offer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 6. INCOMING HUMAN TRADE REVIEW MODAL -->
+    <div id="incomingTradeModal" class="hidden fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-sky-500/60 rounded-2xl max-w-md w-full p-5 shadow-2xl">
+            <h3 class="text-lg font-display font-extrabold text-white mb-1">Incoming Trade Offer!</h3>
+            <p id="incomingTradeSummary" class="text-xs text-slate-300 mb-4 leading-relaxed"></p>
+            <div class="grid grid-cols-2 gap-3">
+                <button onclick="respondHumanTrade(true)" class="py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs uppercase">Accept Deal</button>
+                <button onclick="respondHumanTrade(false)" class="py-2.5 rounded-xl bg-rose-700 hover:bg-rose-600 text-white font-bold text-xs uppercase">Reject Deal</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 7. CHANCE / COMMUNITY CHEST CARD MODAL -->
+    <div id="cardModal" class="hidden fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4">
+        <div id="cardModalBox" class="bg-amber-50 text-slate-900 border-4 border-amber-500 rounded-2xl max-w-sm w-full p-6 shadow-2xl text-center transform transition scale-100">
+            <div id="cardDeckTitle" class="text-xs font-display font-black uppercase tracking-widest text-amber-700 mb-2">CHANCE</div>
+            <div class="my-4 p-4 rounded-xl bg-white/80 border border-amber-200 shadow-inner">
+                <p id="cardText" class="text-sm font-bold text-slate-800 leading-snug"></p>
+            </div>
+            <button id="btnAckCard" onclick="acknowledgeCard()" class="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs uppercase tracking-wider">
+                Continue
+            </button>
+        </div>
+    </div>
+
+    <!-- 8. VICTORY MODAL -->
+    <div id="victoryModal" class="hidden fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="bg-slate-900 border-2 border-amber-400 rounded-2xl max-w-md w-full p-6 text-center shadow-2xl">
+            <div class="w-16 h-16 rounded-full bg-amber-500/20 border border-amber-400 flex items-center justify-center mx-auto mb-3 text-amber-400">
+                <i data-lucide="trophy" class="w-8 h-8"></i>
+            </div>
+            <h2 class="text-2xl font-display font-black text-white mb-1">MONOPOLY CHAMPION!</h2>
+            <p id="winnerAnnouncement" class="text-sm text-emerald-400 font-bold mb-4"></p>
+            <div id="finalStandings" class="bg-slate-950 rounded-xl p-3 mb-5 text-left space-y-1.5 text-xs"></div>
+            <button onclick="openSetupModal()" class="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-display font-extrabold text-sm uppercase tracking-wider">
+                Play Again
+            </button>
+        </div>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- COMPLETE GAME ENGINE, DATA, AUDIO & ADAPTIVE GEMINI AI                -->
+    <!-- ===================================================================== -->
+    <script>
+        /* =================================================================
+           1. CLASSIC 40-SPACE BOARD DATA & MONOPOLY RULES CONSTANTS
+        ================================================================= */
+        const COLOR_MAP = {
+            brown:     { hex: '#955436', text: '#ffffff', label: 'Brown' },
+            lightblue: { hex: '#aae0fa', text: '#0f172a', label: 'Light Blue' },
+            pink:      { hex: '#d93a96', text: '#ffffff', label: 'Pink' },
+            orange:    { hex: '#f7941d', text: '#0f172a', label: 'Orange' },
+            red:       { hex: '#ed1b24', text: '#ffffff', label: 'Red' },
+            yellow:    { hex: '#fef200', text: '#0f172a', label: 'Yellow' },
+            green:     { hex: '#1fb25a', text: '#ffffff', label: 'Green' },
+            darkblue:  { hex: '#0072bb', text: '#ffffff', label: 'Dark Blue' },
+            railroad:  { hex: '#334155', text: '#ffffff', label: 'Railroad' },
+            utility:   { hex: '#64748b', text: '#ffffff', label: 'Utility' }
+        };
+
+        // Landing probability weights (Markov chain steady-state approximations for critical AI evaluation)
+        const SPACE_HEAT_WEIGHT = {
+            1:0.85, 3:0.88, 5:1.25, 6:0.95, 8:0.96, 9:0.98,
+            11:1.05, 12:1.02, 13:1.00, 14:1.06, 15:1.22,
+            16:1.18, 18:1.24, 19:1.28, // Orange group (highest post-jail ROI!)
+            21:1.16, 23:1.14, 24:1.26, 25:1.24, // Red group & B&O (Illinois Ave hotspot)
+            26:1.10, 27:1.08, 28:1.05, 29:1.07,
+            31:1.06, 32:1.04, 34:1.02, 35:1.15,
+            37:0.94, 39:1.12
+        };
+
+        const BOARD_SPACES = [
+            { id: 0,  name: "GO", type: "go", sub: "Collect $200" },
+            { id: 1,  name: "Mediterranean Ave", type: "property", group: "brown", price: 60, rent: [2, 10, 30, 90, 160, 250], houseCost: 50 },
+            { id: 2,  name: "Community Chest", type: "chest" },
+            { id: 3,  name: "Baltic Ave", type: "property", group: "brown", price: 60, rent: [4, 20, 60, 180, 320, 450], houseCost: 50 },
+            { id: 4,  name: "Income Tax", type: "tax", amount: 200 },
+            { id: 5,  name: "Reading Railroad", type: "railroad", group: "railroad", price: 200, rent: [25, 50, 100, 200] },
+            { id: 6,  name: "Oriental Ave", type: "property", group: "lightblue", price: 100, rent: [6, 30, 90, 270, 400, 550], houseCost: 50 },
+            { id: 7,  name: "Chance", type: "chance" },
+            { id: 8,  name: "Vermont Ave", type: "property", group: "lightblue", price: 100, rent: [6, 30, 90, 270, 400, 550], houseCost: 50 },
+            { id: 9,  name: "Connecticut Ave", type: "property", group: "lightblue", price: 120, rent: [8, 40, 100, 300, 450, 600], houseCost: 50 },
+            { id: 10, name: "Jail / Just Visiting", type: "jail" },
+            { id: 11, name: "St. Charles Place", type: "property", group: "pink", price: 140, rent: [10, 50, 150, 450, 625, 750], houseCost: 100 },
+            { id: 12, name: "Electric Company", type: "utility", group: "utility", price: 150 },
+            { id: 13, name: "States Ave", type: "property", group: "pink", price: 140, rent: [10, 50, 150, 450, 625, 750], houseCost: 100 },
+            { id: 14, name: "Virginia Ave", type: "property", group: "pink", price: 160, rent: [12, 60, 180, 500, 700, 900], houseCost: 100 },
+            { id: 15, name: "Pennsylvania RR", type: "railroad", group: "railroad", price: 200, rent: [25, 50, 100, 200] },
+            { id: 16, name: "St. James Place", type: "property", group: "orange", price: 180, rent: [14, 70, 200, 550, 750, 950], houseCost: 100 },
+            { id: 17, name: "Community Chest", type: "chest" },
+            { id: 18, name: "Tennessee Ave", type: "property", group: "orange", price: 180, rent: [14, 70, 200, 550, 750, 950], houseCost: 100 },
+            { id: 19, name: "New York Ave", type: "property", group: "orange", price: 200, rent: [16, 80, 220, 600, 800, 1000], houseCost: 100 },
+            { id: 20, name: "Free Parking", type: "parking" },
+            { id: 21, name: "Kentucky Ave", type: "property", group: "red", price: 220, rent: [18, 90, 250, 700, 875, 1050], houseCost: 150 },
+            { id: 22, name: "Chance", type: "chance" },
+            { id: 23, name: "Indiana Ave", type: "property", group: "red", price: 220, rent: [18, 90, 250, 700, 875, 1050], houseCost: 150 },
+            { id: 24, name: "Illinois Ave", type: "property", group: "red", price: 240, rent: [20, 100, 300, 750, 925, 1100], houseCost: 150 },
+            { id: 25, name: "B. & O. Railroad", type: "railroad", group: "railroad", price: 200, rent: [25, 50, 100, 200] },
+            { id: 26, name: "Atlantic Ave", type: "property", group: "yellow", price: 260, rent: [22, 110, 330, 800, 975, 1150], houseCost: 150 },
+            { id: 27, name: "Ventnor Ave", type: "property", group: "yellow", price: 260, rent: [22, 110, 330, 800, 975, 1150], houseCost: 150 },
+            { id: 28, name: "Water Works", type: "utility", group: "utility", price: 150 },
+            { id: 29, name: "Marvin Gardens", type: "property", group: "yellow", price: 280, rent: [24, 120, 360, 850, 1025, 1200], houseCost: 150 },
+            { id: 30, name: "Go To Jail", type: "gotojail" },
+            { id: 31, name: "Pacific Ave", type: "property", group: "green", price: 300, rent: [26, 130, 390, 900, 1100, 1275], houseCost: 200 },
+            { id: 32, name: "North Carolina Ave", type: "property", group: "green", price: 300, rent: [26, 130, 390, 900, 1100, 1275], houseCost: 200 },
+            { id: 33, name: "Community Chest", type: "chest" },
+            { id: 34, name: "Pennsylvania Ave", type: "property", group: "green", price: 320, rent: [28, 150, 450, 1000, 1200, 1400], houseCost: 200 },
+            { id: 35, name: "Short Line RR", type: "railroad", group: "railroad", price: 200, rent: [25, 50, 100, 200] },
+            { id: 36, name: "Chance", type: "chance" },
+            { id: 37, name: "Park Place", type: "property", group: "darkblue", price: 350, rent: [35, 175, 500, 1100, 1300, 1500], houseCost: 200 },
+            { id: 38, name: "Luxury Tax", type: "tax", amount: 100 },
+            { id: 39, name: "Boardwalk", type: "property", group: "darkblue", price: 400, rent: [50, 200, 600, 1400, 1700, 2000], houseCost: 200 }
+        ];
+
+        const CHANCE_CARDS = [
+            { text: "Advance to GO (Collect $200).", action: "move_to", target: 0 },
+            { text: "Advance to Illinois Ave. If you pass GO, collect $200.", action: "move_to", target: 24 },
+            { text: "Advance to St. Charles Place. If you pass GO, collect $200.", action: "move_to", target: 11 },
+            { text: "Advance token to nearest Utility. If unowned, you may buy it. If owned, throw dice and pay owner 10x amount thrown.", action: "nearest_utility" },
+            { text: "Advance to the nearest Railroad. If unowned, you may buy it. If owned, pay owner twice the rental.", action: "nearest_railroad" },
+            { text: "Advance to the nearest Railroad. If unowned, you may buy it. If owned, pay owner twice the rental.", action: "nearest_railroad" },
+            { text: "Bank pays you dividend of $50.", action: "cash", amount: 50 },
+            { text: "Get Out of Jail Free. This card may be kept until needed or traded.", action: "jail_card" },
+            { text: "Go Back 3 Spaces.", action: "move_rel", offset: -3 },
+            { text: "Go to Jail. Go directly to Jail, do not pass GO, do not collect $200.", action: "gotojail" },
+            { text: "Make general repairs on all your property: For each house pay $25, For each hotel pay $100.", action: "repairs", house: 25, hotel: 100 },
+            { text: "Speeding fine $15.", action: "cash", amount: -15 },
+            { text: "Take a trip to Reading Railroad. If you pass GO, collect $200.", action: "move_to", target: 5 },
+            { text: "Take a walk on the Boardwalk. Advance token to Boardwalk.", action: "move_to", target: 39 },
+            { text: "You have been elected Chairman of the Board. Pay each player $50.", action: "pay_each", amount: 50 },
+            { text: "Your building loan matures. Collect $150.", action: "cash", amount: 150 }
+        ];
+
+        const CHEST_CARDS = [
+            { text: "Advance to GO (Collect $200).", action: "move_to", target: 0 },
+            { text: "Bank error in your favor. Collect $200.", action: "cash", amount: 200 },
+            { text: "Doctor's fee. Pay $50.", action: "cash", amount: -50 },
+            { text: "From sale of stock you get $50.", action: "cash", amount: 50 },
+            { text: "Get Out of Jail Free. This card may be kept until needed or traded.", action: "jail_card" },
+            { text: "Go to Jail. Go directly to Jail, do not pass GO, do not collect $200.", action: "gotojail" },
+            { text: "Holiday fund matures. Receive $100.", action: "cash", amount: 100 },
+            { text: "Income tax refund. Collect $20.", action: "cash", amount: 20 },
+            { text: "It is your birthday. Collect $10 from every player.", action: "collect_each", amount: 10 },
+            { text: "Life insurance matures. Collect $100.", action: "cash", amount: 100 },
+            { text: "Pay hospital fees of $100.", action: "cash", amount: -100 },
+            { text: "Pay school fees of $50.", action: "cash", amount: -50 },
+            { text: "Receive $25 consultancy fee.", action: "cash", amount: 25 },
+            { text: "You are assessed for street repairs: $40 per house, $115 per hotel.", action: "repairs", house: 40, hotel: 115 },
+            { text: "You have won second prize in a beauty contest. Collect $10.", action: "cash", amount: 10 },
+            { text: "You inherit $100.", action: "cash", amount: 100 }
+        ];
+
+        const PLAYER_TOKENS = [
+            { icon: '🎩', label: 'Top Hat', color: '#ef4444' },
+            { icon: '🏎️', label: 'Racecar', color: '#3b82f6' },
+            { icon: '🐕', label: 'Scottie', color: '#10b981' },
+            { icon: '🚢', label: 'Battleship', color: '#f59e0b' }
+        ];
+
+        /* =================================================================
+           2. WEB AUDIO API SYNTHESIZER (NO EXTERNAL AUDIO URLS)
+        ================================================================= */
+        const SoundFX = {
+            muted: false,
+            ctx: null,
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (AudioCtx) this.ctx = new AudioCtx();
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            },
+            playTone(freq, type = 'sine', duration = 0.12, gainVal = 0.12, delay = 0) {
+                if (this.muted) return;
+                this.init();
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, this.ctx.currentTime + delay);
+                gain.gain.setValueAtTime(gainVal, this.ctx.currentTime + delay);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + delay + duration);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(this.ctx.currentTime + delay);
+                osc.stop(this.ctx.currentTime + delay + duration);
+            },
+            dice() {
+                for (let i = 0; i < 5; i++) {
+                    this.playTone(180 + Math.random() * 240, 'triangle', 0.05, 0.1, i * 0.06);
+                }
+            },
+            step() {
+                this.playTone(420, 'sine', 0.05, 0.08);
+            },
+            cash() {
+                this.playTone(880, 'sine', 0.1, 0.12, 0);
+                this.playTone(1320, 'sine', 0.18, 0.14, 0.08);
+            },
+            jail() {
+                this.playTone(160, 'sawtooth', 0.25, 0.14, 0);
+                this.playTone(110, 'sawtooth', 0.35, 0.16, 0.18);
+            },
+            bid() {
+                this.playTone(580, 'triangle', 0.09, 0.1);
+            },
+            win() {
+                [523.25, 659.25, 783.99, 1046.50].forEach((n, idx) => {
+                    this.playTone(n, 'triangle', 0.28, 0.16, idx * 0.12);
+                });
+            }
+        };
+
+        function toggleSound() {
+            SoundFX.muted = !SoundFX.muted;
+            const btn = document.getElementById('soundBtn');
+            btn.innerHTML = SoundFX.muted
+                ? `<i data-lucide="volume-x" class="w-4 h-4 text-rose-400"></i>`
+                : `<i data-lucide="volume-2" class="w-4 h-4"></i>`;
+            lucide.createIcons();
+        }
+
+        /* =================================================================
+           3. GLOBAL GAME STATE
+        ================================================================= */
+        let gameState = {
+            started: false,
+            turnCount: 1,
+            players: [],
+            currentPlayerIdx: 0,
+            dice: [1, 1],
+            hasRolled: false,
+            doublesCount: 0,
+            properties: {}, // spaceId -> { ownerId, houses (0..5, 5=hotel), mortgaged }
+            chanceDeck: [],
+            chestDeck: [],
+            freeParkingPot: 0,
+            rules: {
+                freeParking: false,
+                doubleGo: false
+            },
+            pendingDebt: null, // { debtorId, creditorId ('bank' or playerId), amount, reason, onResolved }
+            pendingCard: null,
+            activeAuction: null,
+            pendingHumanTrade: null,
+            specialRentMultiplier: 1,
+            geminiApiKey: ''
+        };
+
+        /* =================================================================
+           4. GEMINI API KEY STORAGE & UI SYNC
+        ================================================================= */
+        function saveGeminiKey(val) {
+            const trimmed = (val || '').trim();
+            gameState.geminiApiKey = trimmed;
+            try { localStorage.setItem('monopoly_gemini_api_key', trimmed); } catch (e) {}
+            const gInput = document.getElementById('globalGeminiKey');
+            const mInput = document.getElementById('modalGeminiKey');
+            if (gInput && gInput.value !== trimmed) gInput.value = trimmed;
+            if (mInput && mInput.value !== trimmed) mInput.value = trimmed;
+
+            const badge = document.getElementById('aiModeBadge');
+            if (trimmed.length > 10) {
+                badge.className = "whitespace-nowrap px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1.5";
+                badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> Gemini Live AI`;
+            } else {
+                badge.className = "whitespace-nowrap px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center gap-1.5";
+                badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span> Heuristic AI`;
+            }
+        }
+
+        function toggleKeyVisibility() {
+            const inp = document.getElementById('globalGeminiKey');
+            inp.type = inp.type === 'password' ? 'text' : 'password';
+        }
+
+        /* =================================================================
+           5. PRE-GAME SETUP LOGIC
+        ================================================================= */
+        let setupSlots = [
+            { name: 'Player 1', type: 'human' },
+            { name: 'Gemini AI Strategist', type: 'ai' }
+        ];
+
+        function openSetupModal() {
+            document.getElementById('setupModal').classList.remove('hidden');
+            if (gameState.started) {
+                document.getElementById('closeSetupBtn').classList.remove('hidden');
+            }
+            renderSetupSlots();
+        }
+
+        function closeSetupModal() {
+            document.getElementById('setupModal').classList.add('hidden');
+        }
+
+        function applyModePreset(preset) {
+            document.querySelectorAll('.preset-btn').forEach(btn => {
+                if (btn.dataset.preset === preset) {
+                    btn.className = "preset-btn p-2.5 rounded-xl border border-emerald-500 bg-emerald-500/15 text-left transition";
+                } else {
+                    btn.className = "preset-btn p-2.5 rounded-xl border border-slate-700 bg-slate-800/60 hover:border-slate-500 text-left transition";
+                }
+            });
+
+            switch (preset) {
+                case '1H_1AI':
+                    setupSlots = [
+                        { name: 'Player 1', type: 'human' },
+                        { name: 'Gemini AI Alpha', type: 'ai' }
+                    ];
+                    break;
+                case '1H_3AI':
+                    setupSlots = [
+                        { name: 'Player 1', type: 'human' },
+                        { name: 'Gemini AI Alpha', type: 'ai' },
+                        { name: 'Gemini AI Beta', type: 'ai' },
+                        { name: 'Gemini AI Omega', type: 'ai' }
+                    ];
+                    break;
+                case '2H_1AI':
+                    setupSlots = [
+                        { name: 'Player 1', type: 'human' },
+                        { name: 'Player 2', type: 'human' },
+                        { name: 'Gemini AI Bot', type: 'ai' }
+                    ];
+                    break;
+                case '2H_2AI':
+                    setupSlots = [
+                        { name: 'Player 1', type: 'human' },
+                        { name: 'Player 2', type: 'human' },
+                        { name: 'Gemini AI Alpha', type: 'ai' },
+                        { name: 'Gemini AI Beta', type: 'ai' }
+                    ];
+                    break;
+                case '3H_1AI':
+                    setupSlots = [
+                        { name: 'Player 1', type: 'human' },
+                        { name: 'Player 2', type: 'human' },
+                        { name: 'Player 3', type: 'human' },
+                        { name: 'Gemini AI Boss', type: 'ai' }
+                    ];
+                    break;
+                case 'LOCAL_MULTI':
+                    setupSlots = [
+                        { name: 'Player 1', type: 'human' },
+                        { name: 'Player 2', type: 'human' },
+                        { name: 'Player 3', type: 'human' },
+                        { name: 'Player 4', type: 'human' }
+                    ];
+                    break;
+            }
+            renderSetupSlots();
+        }
+
+        function renderSetupSlots() {
+            const container = document.getElementById('setupSlotsContainer');
+            container.innerHTML = setupSlots.map((slot, idx) => {
+                const tok = PLAYER_TOKENS[idx];
+                return `
+                    <div class="flex items-center gap-2 bg-slate-900 border border-slate-800 p-2 rounded-lg">
+                        <span class="w-7 h-7 rounded-full flex items-center justify-center text-base border border-white/30" style="background:${tok.color}33">${tok.icon}</span>
+                        <input type="text" value="${slot.name}" onchange="setupSlots[${idx}].name = this.value"
+                            class="flex-1 bg-slate-800 border border-slate-700 rounded px-2.5 py-1 text-xs text-white outline-none">
+                        <select onchange="setupSlots[${idx}].type = this.value; renderSetupSlots();"
+                            class="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs font-bold ${slot.type === 'ai' ? 'text-indigo-400' : 'text-emerald-400'} outline-none">
+                            <option value="human" ${slot.type === 'human' ? 'selected' : ''}>Human</option>
+                            <option value="ai" ${slot.type === 'ai' ? 'selected' : ''}>AI Bot</option>
+                        </select>
+                        ${setupSlots.length > 2 ? `<button type="button" onclick="removePlayerSlot(${idx})" class="text-slate-500 hover:text-rose-400 px-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
+                    </div>
+                `;
+            }).join('');
+            document.getElementById('btnAddSlot').style.display = setupSlots.length >= 4 ? 'none' : 'inline';
+            lucide.createIcons();
+        }
+
+        function addPlayerSlot() {
+            if (setupSlots.length >= 4) return;
+            const n = setupSlots.length + 1;
+            setupSlots.push({ name: `Player ${n}`, type: 'human' });
+            renderSetupSlots();
+        }
+
+        function removePlayerSlot(idx) {
+            if (setupSlots.length <= 2) return;
+            setupSlots.splice(idx, 1);
+            renderSetupSlots();
+        }
+
+        function shuffleArray(arr) {
+            const copy = [...arr];
+            for (let i = copy.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [copy[i], copy[j]] = [copy[j], copy[i]];
+            }
+            return copy;
+        }
+
+        function startNewGame() {
+            SoundFX.init();
+            const startCash = parseInt(document.getElementById('startingCashSelect').value, 10) || 1500;
+            const turnOrder = document.getElementById('turnOrderSelect').value;
+            gameState.rules.freeParking = document.getElementById('ruleFreeParking').checked;
+            gameState.rules.doubleGo = document.getElementById('ruleDoubleGo').checked;
+
+            // Build player objects
+            let builtPlayers = setupSlots.map((s, idx) => ({
+                id: idx,
+                name: s.name.trim() || `Player ${idx + 1}`,
+                type: s.type,
+                token: PLAYER_TOKENS[idx].icon,
+                color: PLAYER_TOKENS[idx].color,
+                cash: startCash,
+                position: 0,
+                inJail: false,
+                jailTurns: 0,
+                jailCards: 0,
+                bankrupt: false
+            }));
+
+            // Apply Turn Order Priority
+            if (turnOrder === 'AI_FIRST') {
+                builtPlayers.sort((a, b) => (a.type === 'ai' ? -1 : 1) - (b.type === 'ai' ? -1 : 1));
+            } else if (turnOrder === 'HUMAN_FIRST') {
+                builtPlayers.sort((a, b) => (a.type === 'human' ? -1 : 1) - (b.type === 'human' ? -1 : 1));
+            } else if (turnOrder === 'ROLL_DICE') {
+                builtPlayers.forEach(p => p._initRoll = Math.floor(Math.random() * 6) + Math.floor(Math.random() * 6) + 2);
+                builtPlayers.sort((a, b) => b._initRoll - a._initRoll);
+            }
+            // Re-index IDs cleanly after sort
+            builtPlayers.forEach((p, idx) => {
+                p.id = idx;
+                p.token = PLAYER_TOKENS[idx].icon;
+                p.color = PLAYER_TOKENS[idx].color;
+            });
+
+            gameState.started = true;
+            gameState.turnCount = 1;
+            gameState.players = builtPlayers;
+            gameState.currentPlayerIdx = 0;
+            gameState.dice = [1, 1];
+            gameState.hasRolled = false;
+            gameState.doublesCount = 0;
+            gameState.properties = {};
+            gameState.chanceDeck = shuffleArray(CHANCE_CARDS);
+            gameState.chestDeck = shuffleArray(CHEST_CARDS);
+            gameState.freeParkingPot = 0;
+            gameState.pendingDebt = null;
+            gameState.pendingCard = null;
+            gameState.activeAuction = null;
+            gameState.specialRentMultiplier = 1;
+
+            // Initialize ownable properties state
+            BOARD_SPACES.forEach(sp => {
+                if (['property', 'railroad', 'utility'].includes(sp.type)) {
+                    gameState.properties[sp.id] = { ownerId: null, houses: 0, mortgaged: false };
+                }
+            });
+
+            document.getElementById('setupModal').classList.add('hidden');
+            document.getElementById('victoryModal').classList.add('hidden');
+            document.getElementById('gameLog').innerHTML = '';
+
+            const ruleTags = [];
+            if (gameState.rules.freeParking) ruleTags.push('Free Parking Pot');
+            if (gameState.rules.doubleGo) ruleTags.push('$400 on GO');
+            document.getElementById('activeRulesSummary').textContent = ruleTags.length ? ruleTags.join(' • ') : 'Official Classic Rules';
+
+            logEvent(`🎲 Game started! Turn order: ${builtPlayers.map(p => `${p.token} ${p.name}`).join(' → ')}`, 'system');
+            if (turnOrder === 'ROLL_DICE') {
+                logEvent(`Initial rolls: ${builtPlayers.map(p => `${p.name} (${p._initRoll})`).join(', ')}`, 'info');
+            }
+
+            renderBoard();
+            updateAllUI();
+            triggerTurnStart();
+        }
+
+        /* =================================================================
+           6. BOARD GRID RENDERING & TITLE DEED INSPECTOR
+        ================================================================= */
+        function getGridCoords(spaceId) {
+            // 0 = Bottom-Right (row 11, col 11)
+            if (spaceId === 0)  return { row: 11, col: 11, side: 'corner' };
+            if (spaceId < 10)   return { row: 11, col: 11 - spaceId, side: 'bottom' };
+            if (spaceId === 10) return { row: 11, col: 1, side: 'corner' };
+            if (spaceId < 20)   return { row: 11 - (spaceId - 10), col: 1, side: 'left' };
+            if (spaceId === 20) return { row: 1, col: 1, side: 'corner' };
+            if (spaceId < 30)   return { row: 1, col: 1 + (spaceId - 20), side: 'top' };
+            if (spaceId === 30) return { row: 1, col: 11, side: 'corner' };
+            return { row: 1 + (spaceId - 30), col: 11, side: 'right' };
+        }
+
+        function renderBoard() {
+            const boardEl = document.getElementById('monopolyBoard');
+            boardEl.innerHTML = '';
+
+            // 1. Center Hub
+            const center = document.createElement('div');
+            center.className = 'board-center';
+            center.innerHTML = `
+                <!-- Top Community Chest Deck Visual -->
+                <div class="w-full flex justify-between items-start px-2">
+                    <div class="w-20 sm:w-28 h-12 sm:h-16 rounded-lg border-2 border-dashed border-sky-700/60 bg-sky-200/50 flex flex-col items-center justify-center p-1 shadow-sm">
+                        <span class="text-[9px] sm:text-[11px] font-display font-black text-sky-900 text-center leading-tight">COMMUNITY CHEST</span>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-emerald-900 bg-emerald-200/80 px-2 py-0.5 rounded border border-emerald-700/30">
+                            Gemini AI Edition
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Center Logo & 3D Dice Arena -->
+                <div class="flex flex-col items-center justify-center gap-3 my-auto z-10">
+                    <div class="monopoly-logo-banner px-4 sm:px-7 py-1.5 sm:py-2.5 rounded-md font-display font-black text-lg sm:text-3xl select-none pointer-events-none opacity-90">
+                        MONOPOLY
+                    </div>
+
+                    <!-- Dice Container -->
+                    <div class="mt-4 flex items-center gap-3 bg-slate-900/90 px-4 py-2.5 rounded-2xl border-2 border-slate-700 shadow-2xl">
+                        <div id="die1" class="die-box"></div>
+                        <div id="die2" class="die-box"></div>
+                        <div class="flex flex-col pl-1">
+                            <span class="text-[10px] uppercase font-bold text-slate-400">Roll Total</span>
+                            <span id="diceTotalLabel" class="text-lg font-display font-black text-white">2</span>
+                            <span id="doublesBadge" class="hidden text-[9px] font-extrabold text-amber-400 uppercase">Doubles!</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bottom Chance Deck Visual -->
+                <div class="w-full flex justify-between items-end px-2">
+                    <div class="text-[10px] font-bold text-slate-700">
+                        40 Spaces • Full Rules
+                    </div>
+                    <div class="w-20 sm:w-28 h-12 sm:h-16 rounded-lg border-2 border-dashed border-amber-700/60 bg-amber-200/60 flex flex-col items-center justify-center p-1 shadow-sm">
+                        <span class="text-[10px] sm:text-xs font-display font-black text-amber-900 text-center">CHANCE ?</span>
+                    </div>
+                </div>
+            `;
+            boardEl.appendChild(center);
+
+            // 2. Render 40 Spaces
+            BOARD_SPACES.forEach(space => {
+                const { row, col, side } = getGridCoords(space.id);
+                const el = document.createElement('div');
+                const propState = gameState.properties[space.id];
+                const isMortgaged = propState && propState.mortgaged;
+
+                el.className = `board-space ${side === 'left' ? 'space-side-left' : side === 'right' ? 'space-side-right' : ''} ${isMortgaged ? 'mortgaged' : ''}`;
+                el.style.gridRow = row;
+                el.style.gridColumn = col;
+                el.onclick = () => inspectSpace(space.id);
+                el.onmouseenter = () => inspectSpace(space.id);
+
+                // Color header bar for properties
+                if (space.type === 'property') {
+                    const bar = document.createElement('div');
+                    const barClass = side === 'bottom' ? 'color-bar-bottom' :
+                                     side === 'top'    ? 'color-bar-top' :
+                                     side === 'left'   ? 'color-bar-left' : 'color-bar-right';
+                    bar.className = barClass;
+                    bar.style.backgroundColor = COLOR_MAP[space.group].hex;
+
+                    // Render houses / hotel pips
+                    if (propState && propState.houses > 0) {
+                        if (propState.houses === 5) {
+                            bar.innerHTML = `<div class="hotel-pip" title="Hotel"></div>`;
+                        } else {
+                            bar.innerHTML = Array(propState.houses).fill(`<div class="house-pip" title="House"></div>`).join('');
+                        }
+                    }
+                    el.appendChild(bar);
+                }
+
+                // Ownership indicator dot
+                if (propState && propState.ownerId !== null) {
+                    const owner = gameState.players[propState.ownerId];
+                    if (owner) {
+                        const dot = document.createElement('div');
+                        dot.className = 'owner-badge';
+                        dot.style.backgroundColor = owner.color;
+                        dot.style.bottom = '2px';
+                        dot.style.right = '2px';
+                        dot.title = `Owned by ${owner.name}`;
+                        el.appendChild(dot);
+                    }
+                }
+
+                // Inner text / icon
+                const body = document.createElement('div');
+                body.className = 'space-text';
+
+                if (space.type === 'go') {
+                    body.innerHTML = `<span class="text-[8px] text-red-700 font-extrabold">COLLECT $200</span><span class="text-sm sm:text-base font-display font-black text-red-600">GO ⬅</span>`;
+                } else if (space.type === 'jail') {
+                    body.innerHTML = `<span class="text-[8px] font-bold">JUST</span><span class="text-base sm:text-xl">⛓️</span><span class="text-[8px] font-bold">VISITING</span>`;
+                } else if (space.type === 'parking') {
+                    body.innerHTML = `<span class="text-[8px] font-bold text-red-700">FREE</span><span class="text-base sm:text-xl">🚗</span><span class="text-[8px] font-bold text-red-700">PARKING</span>`;
+                } else if (space.type === 'gotojail') {
+                    body.innerHTML = `<span class="text-[8px] font-bold">GO TO</span><span class="text-base sm:text-xl">👮</span><span class="text-[8px] font-bold">JAIL</span>`;
+                } else if (space.type === 'chance') {
+                    body.innerHTML = `<span class="font-extrabold text-amber-800">Chance</span><span class="text-sm sm:text-lg font-black text-amber-600">?</span>`;
+                } else if (space.type === 'chest') {
+                    body.innerHTML = `<span class="font-extrabold text-sky-900">Comm. Chest</span><span class="text-sm sm:text-base">📦</span>`;
+                } else if (space.type === 'railroad') {
+                    body.innerHTML = `<span>${space.name.replace(' Railroad', ' RR')}</span><span class="text-xs sm:text-sm">🚂</span><span class="text-[8px] font-bold">$${space.price}</span>`;
+                } else if (space.type === 'utility') {
+                    const ico = space.id === 12 ? '💡' : '🚰';
+                    body.innerHTML = `<span>${space.name}</span><span class="text-xs sm:text-sm">${ico}</span><span class="text-[8px] font-bold">$${space.price}</span>`;
+                } else if (space.type === 'tax') {
+                    body.innerHTML = `<span>${space.name}</span><span class="text-xs">💸</span><span class="text-[8px] font-bold text-red-700">Pay $${space.amount}</span>`;
+                } else {
+                    body.innerHTML = `<span class="mt-0.5">${space.name}</span><span class="text-[8px] font-extrabold text-slate-700">$${space.price}</span>`;
+                }
+
+                el.appendChild(body);
+
+                // Render Player Tokens standing on this space
+                const playersHere = gameState.players.filter(p => !p.bankrupt && p.position === space.id);
+                if (playersHere.length > 0) {
+                    const tokenWrap = document.createElement('div');
+                    tokenWrap.className = 'absolute inset-0 flex flex-wrap items-center justify-center gap-0.5 pointer-events-none z-20 p-0.5';
+                    playersHere.forEach(p => {
+                        const tSpan = document.createElement('span');
+                        tSpan.className = 'player-token text-sm sm:text-lg leading-none rounded-full px-0.5';
+                        tSpan.style.backgroundColor = `${p.color}dd`;
+                        tSpan.style.border = '1.5px solid #ffffff';
+                        tSpan.textContent = p.token;
+                        tSpan.title = `${p.name}${p.inJail ? ' (In Jail)' : ''}`;
+                        tokenWrap.appendChild(tSpan);
+                    });
+                    el.appendChild(tokenWrap);
+                }
+
+                boardEl.appendChild(el);
+            });
+
+            renderDiceFaces(gameState.dice[0], gameState.dice[1], false);
+        }
+
+        function renderDiceFaces(d1, d2, isRolling = false) {
+            const pipLayouts = {
+                1: [4],
+                2: [0, 8],
+                3: [0, 4, 8],
+                4: [0, 2, 6, 8],
+                5: [0, 2, 4, 6, 8],
+                6: [0, 2, 3, 5, 6, 8]
+            };
+            [
+                { id: 'die1', val: d1 },
+                { id: 'die2', val: d2 }
+            ].forEach(({ id, val }) => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.className = `die-box ${isRolling ? 'die-rolling' : ''}`;
+                let html = '';
+                for (let i = 0; i < 9; i++) {
+                    if (pipLayouts[val].includes(i)) {
+                        html += `<div class="pip ${val === 1 ? 'red' : ''}"></div>`;
+                    } else {
+                        html += `<div></div>`;
+                    }
+                }
+                el.innerHTML = html;
+            });
+
+            const totalEl = document.getElementById('diceTotalLabel');
+            if (totalEl) totalEl.textContent = d1 + d2;
+            const dblEl = document.getElementById('doublesBadge');
+            if (dblEl) {
+                if (d1 === d2 && gameState.hasRolled) dblEl.classList.remove('hidden');
+                else dblEl.classList.add('hidden');
+            }
+        }
+
+        function buildTitleDeedHTML(spaceId) {
+            const sp = BOARD_SPACES[spaceId];
+            const prop = gameState.properties[spaceId];
+            if (!sp || !prop) {
+                return `<div class="text-center my-auto py-6">
+                    <div class="text-sm font-display font-extrabold text-slate-800 uppercase">${sp ? sp.name : 'Board Space'}</div>
+                    <p class="text-xs text-slate-600 mt-2">${sp && sp.sub ? sp.sub : 'Special Board Space'}</p>
+                </div>`;
+            }
+
+            const col = COLOR_MAP[sp.group];
+            const owner = prop.ownerId !== null ? gameState.players[prop.ownerId] : null;
+            const ownerLabel = owner ? `${owner.token} ${owner.name}` : 'Unowned (Bank)';
+
+            if (sp.type === 'property') {
+                return `
+                    <div>
+                        <div class="rounded p-2 text-center border border-slate-800 mb-2" style="background:${col.hex}; color:${col.text}">
+                            <div class="text-[9px] uppercase tracking-widest opacity-80">Title Deed</div>
+                            <div class="text-sm font-display font-black uppercase">${sp.name}</div>
+                        </div>
+                        <div class="text-[11px] space-y-0.5 text-slate-800">
+                            <div class="flex justify-between font-bold border-b border-slate-300 pb-0.5"><span>Price / Mortgage:</span><span>$${sp.price} / $${sp.price / 2}</span></div>
+                            <div class="flex justify-between"><span>Base Rent:</span><span>$${sp.rent[0]} (Monopoly: $${sp.rent[0]*2})</span></div>
+                            <div class="flex justify-between"><span>With 1 House:</span><span>$${sp.rent[1]}</span></div>
+                            <div class="flex justify-between"><span>With 2 Houses:</span><span>$${sp.rent[2]}</span></div>
+                            <div class="flex justify-between"><span>With 3 Houses:</span><span>$${sp.rent[3]}</span></div>
+                            <div class="flex justify-between"><span>With 4 Houses:</span><span>$${sp.rent[4]}</span></div>
+                            <div class="flex justify-between font-bold text-red-700"><span>With HOTEL:</span><span>$${sp.rent[5]}</span></div>
+                            <div class="flex justify-between text-[10px] text-slate-600 pt-1 border-t border-slate-300"><span>House Cost:</span><span>$${sp.houseCost} each</span></div>
+                        </div>
+                    </div>
+                    <div class="mt-2 pt-1.5 border-t border-slate-300 flex justify-between items-center text-[11px] font-bold">
+                        <span>Owner:</span>
+                        <span class="px-1.5 py-0.5 rounded bg-slate-200 text-slate-900">${ownerLabel}</span>
+                    </div>
+                `;
+            } else if (sp.type === 'railroad') {
+                return `
+                    <div>
+                        <div class="rounded p-2 text-center bg-slate-800 text-white mb-2">
+                            <div class="text-sm font-display font-black uppercase">🚂 ${sp.name}</div>
+                        </div>
+                        <div class="text-[11px] space-y-1 text-slate-800">
+                            <div class="flex justify-between font-bold"><span>Purchase Price:</span><span>$${sp.price}</span></div>
+                            <div class="flex justify-between"><span>1 Railroad Owned:</span><span>$25</span></div>
+                            <div class="flex justify-between"><span>2 Railroads Owned:</span><span>$50</span></div>
+                            <div class="flex justify-between"><span>3 Railroads Owned:</span><span>$100</span></div>
+                            <div class="flex justify-between font-bold"><span>4 Railroads Owned:</span><span>$200</span></div>
+                            <div class="flex justify-between text-slate-600"><span>Mortgage Value:</span><span>$${sp.price / 2}</span></div>
+                        </div>
+                    </div>
+                    <div class="mt-2 pt-1.5 border-t border-slate-300 flex justify-between items-center text-[11px] font-bold">
+                        <span>Owner:</span>
+                        <span class="px-1.5 py-0.5 rounded bg-slate-200 text-slate-900">${ownerLabel}</span>
+                    </div>
+                `;
+            } else {
+                return `
+                    <div>
+                        <div class="rounded p-2 text-center bg-slate-600 text-white mb-2">
+                            <div class="text-sm font-display font-black uppercase">${sp.name}</div>
+                        </div>
+                        <div class="text-[11px] space-y-1.5 text-slate-800">
+                            <div class="flex justify-between font-bold"><span>Purchase Price:</span><span>$${sp.price}</span></div>
+                            <p class="leading-snug">If 1 Utility is owned, rent is <strong>4x</strong> amount shown on dice.</p>
+                            <p class="leading-snug">If both Utilities are owned, rent is <strong>10x</strong> amount shown on dice.</p>
+                            <div class="flex justify-between text-slate-600"><span>Mortgage Value:</span><span>$${sp.price / 2}</span></div>
+                        </div>
+                    </div>
+                    <div class="mt-2 pt-1.5 border-t border-slate-300 flex justify-between items-center text-[11px] font-bold">
+                        <span>Owner:</span>
+                        <span class="px-1.5 py-0.5 rounded bg-slate-200 text-slate-900">${ownerLabel}</span>
+                    </div>
+                `;
+            }
+        }
+
+        function inspectSpace(spaceId) {
+            document.getElementById('deedInspector').innerHTML = buildTitleDeedHTML(spaceId);
+        }
+
+        /* =================================================================
+           7. CORE MONOPOLY RULES & PROPERTY HELPERS
+        ================================================================= */
+        function getActivePlayer() {
+            return gameState.players[gameState.currentPlayerIdx];
+        }
+
+        function getPlayerProperties(playerId) {
+            return Object.entries(gameState.properties)
+                .filter(([_, st]) => st.ownerId === playerId)
+                .map(([id, st]) => ({ space: BOARD_SPACES[Number(id)], state: st }));
+        }
+
+        function playerHasMonopoly(playerId, group) {
+            if (!group || group === 'railroad' || group === 'utility') return false;
+            const groupSpaces = BOARD_SPACES.filter(s => s.group === group);
+            return groupSpaces.every(s => gameState.properties[s.id].ownerId === playerId);
+        }
+
+        function calculateNetWorth(playerId) {
+            const p = gameState.players[playerId];
+            if (!p || p.bankrupt) return 0;
+            let total = p.cash;
+            getPlayerProperties(playerId).forEach(({ space, state }) => {
+                total += state.mortgaged ? (space.price / 2) : space.price;
+                if (space.houseCost && state.houses > 0) {
+                    total += state.houses * space.houseCost;
+                }
+            });
+            return total;
+        }
+
+        function calculateRent(spaceId, diceTotal) {
+            const sp = BOARD_SPACES[spaceId];
+            const prop = gameState.properties[spaceId];
+            if (!prop || prop.ownerId === null || prop.mortgaged) return 0;
+
+            const ownerId = prop.ownerId;
+            if (sp.type === 'property') {
+                if (prop.houses > 0) {
+                    return sp.rent[prop.houses];
+                }
+                const base = sp.rent[0];
+                return playerHasMonopoly(ownerId, sp.group) ? base * 2 : base;
+            }
+            if (sp.type === 'railroad') {
+                const rrCount = BOARD_SPACES.filter(s => s.type === 'railroad' && gameState.properties[s.id].ownerId === ownerId && !gameState.properties[s.id].mortgaged).length;
+                const baseRent = sp.rent[Math.max(0, rrCount - 1)];
+                return baseRent * gameState.specialRentMultiplier;
+            }
+            if (sp.type === 'utility') {
+                const utilCount = BOARD_SPACES.filter(s => s.type === 'utility' && gameState.properties[s.id].ownerId === ownerId && !gameState.properties[s.id].mortgaged).length;
+                if (gameState.specialRentMultiplier === 10) return diceTotal * 10;
+                return diceTotal * (utilCount >= 2 ? 10 : 4);
+            }
+            return 0;
+        }
+
+        function logEvent(msg, category = 'normal') {
+            const logEl = document.getElementById('gameLog');
+            const entry = document.createElement('div');
+            const styles = {
+                system: 'bg-slate-800/90 text-emerald-300 border-l-2 border-emerald-400',
+                ai:     'bg-indigo-950/60 text-indigo-200 border-l-2 border-indigo-400',
+                money:  'bg-slate-800/50 text-amber-200 border-l-2 border-amber-400',
+                danger: 'bg-rose-950/60 text-rose-200 border-l-2 border-rose-500',
+                normal: 'bg-slate-800/40 text-slate-300 border-l-2 border-slate-600'
+            };
+            entry.className = `p-2 rounded text-[11px] leading-snug ${styles[category] || styles.normal}`;
+            entry.innerHTML = msg;
+            logEl.prepend(entry);
+        }
+
+        function clearLog() {
+            document.getElementById('gameLog').innerHTML = '';
+        }
+
+        function updateAllUI() {
+            const p = getActivePlayer();
+            if (!p) return;
+
+            document.getElementById('turnCounterBadge').textContent = `Turn ${gameState.turnCount}`;
+            document.getElementById('freeParkingPotDisplay').textContent = `$${gameState.freeParkingPot.toLocaleString()}`;
+            document.getElementById('activeTurnIndicator').innerHTML = `${p.token} ${p.name} ${p.type === 'ai' ? '(AI)' : ''}`;
+
+            // Render Players Roster
+            const listEl = document.getElementById('playersList');
+            listEl.innerHTML = gameState.players.map(pl => {
+                const isActive = pl.id === gameState.currentPlayerIdx && !pl.bankrupt;
+                const props = getPlayerProperties(pl.id);
+                const nw = calculateNetWorth(pl.id);
+                return `
+                    <div class="p-2.5 rounded-xl border transition ${pl.bankrupt ? 'opacity-40 bg-slate-950 border-slate-800' : isActive ? 'bg-slate-800/90 border-emerald-500 shadow-md' : 'bg-slate-950/60 border-slate-800'}">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="text-lg w-7 h-7 rounded-full flex items-center justify-center border border-white/30" style="background:${pl.color}44">${pl.token}</span>
+                                <div>
+                                    <div class="text-xs font-extrabold text-white flex items-center gap-1.5">
+                                        <span>${pl.name}</span>
+                                        ${pl.type === 'ai' ? '<span class="text-[9px] px-1.5 py-0.2 rounded bg-indigo-500/30 text-indigo-300 border border-indigo-500/40">AI</span>' : ''}
+                                        ${pl.inJail ? '<span class="text-[9px] px-1 rounded bg-rose-600 text-white">JAIL</span>' : ''}
+                                    </div>
+                                    <div class="text-[10px] text-slate-400">Net Worth: $${nw.toLocaleString()} • ${props.length} Deeds</div>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-sm font-display font-black ${pl.cash < 100 ? 'text-rose-400' : 'text-emerald-400'}">$${pl.cash.toLocaleString()}</div>
+                                ${pl.jailCards > 0 ? `<div class="text-[9px] text-amber-300">🎟️ ${pl.jailCards} Jail Free</div>` : ''}
+                            </div>
+                        </div>
+                        ${props.length > 0 ? `
+                            <div class="mt-2 flex flex-wrap gap-1">
+                                ${props.map(({ space, state }) => `
+                                    <span onclick="inspectSpace(${space.id})" title="${space.name}${state.mortgaged ? ' (Mortgaged)' : ''}"
+                                        class="cursor-pointer w-3.5 h-2.5 rounded-sm border border-black/50 ${state.mortgaged ? 'opacity-35' : ''}"
+                                        style="background:${COLOR_MAP[space.group].hex}"></span>
+                                `).join('')}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }).join('');
+
+            // Update Action Buttons for Human vs AI
+            const isHumanTurn = p.type === 'human' && !p.bankrupt && !gameState.pendingDebt && !gameState.activeAuction;
+            const btnRoll = document.getElementById('btnRollDice');
+            const btnManage = document.getElementById('btnManageProps');
+            const btnTrade = document.getElementById('btnTrade');
+            const btnEnd = document.getElementById('btnEndTurn');
+            const btnPayJail = document.getElementById('btnPayJail');
+            const btnJailCard = document.getElementById('btnUseJailCard');
+
+            btnRoll.disabled = !(isHumanTurn && !gameState.hasRolled);
+            btnManage.disabled = !isHumanTurn;
+            btnTrade.disabled = !isHumanTurn;
+            btnEnd.disabled = !(isHumanTurn && gameState.hasRolled);
+
+            if (isHumanTurn && p.inJail && !gameState.hasRolled) {
+                btnPayJail.classList.toggle('hidden', p.cash < 50);
+                btnJailCard.classList.toggle('hidden', p.jailCards <= 0);
+            } else {
+                btnPayJail.classList.add('hidden');
+                btnJailCard.classList.add('hidden');
+            }
+
+            // Debt resolution banner
+            const debtBanner = document.getElementById('debtBanner');
+            if (gameState.pendingDebt && gameState.players[gameState.pendingDebt.debtorId].type === 'human') {
+                debtBanner.classList.remove('hidden');
+                document.getElementById('debtMessage').textContent =
+                    `You owe $${gameState.pendingDebt.amount} (${gameState.pendingDebt.reason}). Raise cash via Build/Mortgage or Trade!`;
+                btnManage.disabled = false;
+                btnTrade.disabled = false;
+            } else {
+                debtBanner.classList.add('hidden');
+            }
+
+            renderBoard();
+        }
+
+        /* =================================================================
+           8. TURN PROGRESSION, DICE ROLLS & TOKEN MOVEMENT
+        ================================================================= */
+        async function triggerTurnStart() {
+            const p = getActivePlayer();
+            if (!p || p.bankrupt) {
+                advanceToNextPlayer();
+                return;
+            }
+
+            gameState.hasRolled = false;
+            gameState.specialRentMultiplier = 1;
+            updateAllUI();
+
+            if (p.type === 'ai') {
+                await runAITurn(p);
+            }
+        }
+
+        async function handleRollDice() {
+            const p = getActivePlayer();
+            if (!p || gameState.hasRolled || gameState.pendingDebt) return;
+
+            document.getElementById('btnRollDice').disabled = true;
+            SoundFX.dice();
+
+            // Animate dice shake
+            for (let i = 0; i < 6; i++) {
+                renderDiceFaces(Math.ceil(Math.random() * 6), Math.ceil(Math.random() * 6), true);
+                await sleep(65);
+            }
+
+            const d1 = Math.ceil(Math.random() * 6);
+            const d2 = Math.ceil(Math.random() * 6);
+            const total = d1 + d2;
+            const isDoubles = d1 === d2;
+
+            gameState.dice = [d1, d2];
+            gameState.hasRolled = true;
+            renderDiceFaces(d1, d2, false);
+
+            logEvent(`${p.token} <strong>${p.name}</strong> rolled <strong>${d1} + ${d2} = ${total}</strong>${isDoubles ? ' (DOUBLES!)' : ''}.`);
+
+            // Handle Jail Roll Logic
+            if (p.inJail) {
+                if (isDoubles) {
+                    p.inJail = false;
+                    p.jailTurns = 0;
+                    gameState.doublesCount = 0;
+                    logEvent(`🔓 ${p.name} rolled doubles and escaped Jail!`, 'system');
+                    await movePlayerSteps(p, total);
+                    // Escaping via doubles does not grant an extra roll in standard rules
+                    gameState.hasRolled = true;
+                    updateAllUI();
+                } else {
+                    p.jailTurns++;
+                    if (p.jailTurns >= 3) {
+                        logEvent(`⛓️ 3rd failed roll in Jail. ${p.name} must pay $50 bail and move ${total} spaces.`, 'danger');
+                        p.inJail = false;
+                        p.jailTurns = 0;
+                        await chargePlayer(p.id, 'bank', 50, 'Mandatory 3rd-turn Jail Bail', async () => {
+                            await movePlayerSteps(p, total);
+                            updateAllUI();
+                        });
+                    } else {
+                        logEvent(`⛓️ ${p.name} failed to roll doubles (Attempt ${p.jailTurns}/3). Remains in Jail.`);
+                        updateAllUI();
+                    }
+                }
+                return;
+            }
+
+            // Track consecutive doubles
+            if (isDoubles) {
+                gameState.doublesCount++;
+                if (gameState.doublesCount >= 3) {
+                    logEvent(`🚨 ${p.name} rolled 3 consecutive doubles! Speeding directly to Jail!`, 'danger');
+                    sendPlayerToJail(p);
+                    gameState.hasRolled = true;
+                    updateAllUI();
+                    return;
+                }
+            } else {
+                gameState.doublesCount = 0;
+            }
+
+            await movePlayerSteps(p, total);
+
+            // If doubles rolled and not in jail, allow rolling again
+            if (isDoubles && !p.inJail && !p.bankrupt) {
+                gameState.hasRolled = false;
+                logEvent(`🎲 Doubles! <strong>${p.name}</strong> gets another roll!`, 'system');
+            }
+            updateAllUI();
+        }
+
+        async function movePlayerSteps(player, steps) {
+            const dir = steps >= 0 ? 1 : -1;
+            const count = Math.abs(steps);
+            for (let i = 0; i < count; i++) {
+                const prevPos = player.position;
+                player.position = (player.position + dir + 40) % 40;
+                if (dir > 0 && prevPos === 39 && player.position === 0) {
+                    const goBonus = (gameState.rules.doubleGo && i === count - 1) ? 400 : 200;
+                    player.cash += goBonus;
+                    SoundFX.cash();
+                    logEvent(`💵 ${player.name} passed GO and collected <strong>$${goBonus}</strong>!`, 'money');
+                }
+                SoundFX.step();
+                renderBoard();
+                await sleep(145);
+            }
+            await resolveSpaceLanding(player);
+        }
+
+        async function movePlayerDirectTo(player, targetSpaceId, collectGo = true) {
+            if (collectGo && targetSpaceId < player.position) {
+                const bonus = (targetSpaceId === 0 && gameState.rules.doubleGo) ? 400 : 200;
+                player.cash += bonus;
+                SoundFX.cash();
+                logEvent(`💵 ${player.name} passed GO and collected <strong>$${bonus}</strong>!`, 'money');
+            }
+            player.position = targetSpaceId;
+            SoundFX.step();
+            renderBoard();
+            await sleep(250);
+            await resolveSpaceLanding(player);
+        }
+
+        function sendPlayerToJail(player) {
+            player.position = 10;
+            player.inJail = true;
+            player.jailTurns = 0;
+            gameState.doublesCount = 0;
+            SoundFX.jail();
+            renderBoard();
+        }
+
+        function handlePayJailFine() {
+            const p = getActivePlayer();
+            if (!p || !p.inJail || p.cash < 50) return;
+            p.cash -= 50;
+            if (gameState.rules.freeParking) gameState.freeParkingPot += 50;
+            p.inJail = false;
+            p.jailTurns = 0;
+            SoundFX.cash();
+            logEvent(`🔓 ${p.name} paid $50 bail and is now free to roll!`, 'system');
+            updateAllUI();
+        }
+
+        function handleUseJailCard() {
+            const p = getActivePlayer();
+            if (!p || !p.inJail || p.jailCards <= 0) return;
+            p.jailCards--;
+            p.inJail = false;
+            p.jailTurns = 0;
+            logEvent(`🎟️ ${p.name} used a Get Out of Jail Free card!`, 'system');
+            updateAllUI();
+        }
+
+        /* =================================================================
+           9. SPACE RESOLUTION (BUY, RENT, TAX, CARDS, JAIL)
+        ================================================================= */
+        async function resolveSpaceLanding(player) {
+            const sp = BOARD_SPACES[player.position];
+            inspectSpace(sp.id);
+
+            if (sp.type === 'go' || sp.type === 'jail') {
+                return;
+            }
+
+            if (sp.type === 'parking') {
+                if (gameState.rules.freeParking && gameState.freeParkingPot > 0) {
+                    const pot = gameState.freeParkingPot;
+                    gameState.freeParkingPot = 0;
+                    player.cash += pot;
+                    SoundFX.cash();
+                    logEvent(`🎉 ${player.name} landed on Free Parking and won the <strong>$${pot}</strong> jackpot!`, 'money');
+                }
+                return;
+            }
+
+            if (sp.type === 'gotojail') {
+                logEvent(`👮 ${player.name} landed on Go To Jail!`, 'danger');
+                sendPlayerToJail(player);
+                return;
+            }
+
+            if (sp.type === 'tax') {
+                logEvent(`💸 ${player.name} landed on ${sp.name} ($${sp.amount}).`, 'danger');
+                await chargePlayer(player.id, 'bank', sp.amount, sp.name);
+                return;
+            }
+
+            if (sp.type === 'chance' || sp.type === 'chest') {
+                await drawCard(player, sp.type);
+                return;
+            }
+
+            // Ownable Space (Property, Railroad, Utility)
+            const prop = gameState.properties[sp.id];
+            if (prop.ownerId === null) {
+                if (player.type === 'human') {
+                    await promptHumanBuyDecision(player, sp);
+                } else {
+                    await promptAIBuyDecision(player, sp);
+                }
+            } else if (prop.ownerId !== player.id) {
+                const owner = gameState.players[prop.ownerId];
+                if (prop.mortgaged) {
+                    logEvent(`🏠 ${sp.name} is owned by ${owner.name}, but is mortgaged ($0 rent).`);
+                } else {
+                    const diceTotal = gameState.dice[0] + gameState.dice[1];
+                    const rent = calculateRent(sp.id, diceTotal);
+                    logEvent(`💰 ${player.name} landed on ${owner.name}'s <strong>${sp.name}</strong> — Rent due: <strong>$${rent}</strong>.`, 'money');
+                    await chargePlayer(player.id, owner.id, rent, `Rent at ${sp.name}`);
+                }
+            }
+        }
+
+        /* =================================================================
+           10. BUYING & LIVE AUCTION SYSTEM
+        ================================================================= */
+        let buyDecisionResolver = null;
+
+        function promptHumanBuyDecision(player, space) {
+            return new Promise(resolve => {
+                buyDecisionResolver = resolve;
+                document.getElementById('buyModalSubtitle').textContent =
+                    `${player.token} ${player.name} (Cash: $${player.cash}) landed on ${space.name}.`;
+                document.getElementById('buyModalDeedCard').innerHTML = buildTitleDeedHTML(space.id);
+                const buyBtn = document.getElementById('btnConfirmBuy');
+                buyBtn.disabled = player.cash < space.price;
+                buyBtn.textContent = player.cash < space.price ? `Need $${space.price}` : `Buy for $${space.price}`;
+                document.getElementById('buyModal').classList.remove('hidden');
+            });
+        }
+
+        function confirmBuyProperty() {
+            const p = getActivePlayer();
+            const sp = BOARD_SPACES[p.position];
+            if (p.cash >= sp.price) {
+                p.cash -= sp.price;
+                gameState.properties[sp.id].ownerId = p.id;
+                SoundFX.cash();
+                logEvent(`🏠 <strong>${p.name}</strong> bought <strong>${sp.name}</strong> for $${sp.price}.`, 'money');
+            }
+            document.getElementById('buyModal').classList.add('hidden');
+            updateAllUI();
+            if (buyDecisionResolver) {
+                const r = buyDecisionResolver;
+                buyDecisionResolver = null;
+                r();
+            }
+        }
+
+        async function declineBuyToAuction() {
+            const p = getActivePlayer();
+            const sp = BOARD_SPACES[p.position];
+            document.getElementById('buyModal').classList.add('hidden');
+            logEvent(`🔨 ${p.name} declined to buy ${sp.name}. Sending property to Auction!`, 'system');
+            await runAuction(sp.id);
+            if (buyDecisionResolver) {
+                const r = buyDecisionResolver;
+                buyDecisionResolver = null;
+                r();
+            }
+        }
+
+        let auctionResolver = null;
+
+        function runAuction(spaceId) {
+            return new Promise(resolve => {
+                auctionResolver = resolve;
+                const sp = BOARD_SPACES[spaceId];
+                const eligible = gameState.players.filter(p => !p.bankrupt && p.cash >= 10);
+
+                if (eligible.length === 0) {
+                    logEvent(`🔨 Nobody had enough cash to bid on ${sp.name}.`);
+                    resolve();
+                    return;
+                }
+
+                gameState.activeAuction = {
+                    spaceId,
+                    highBid: 0,
+                    highBidderId: null,
+                    activeBidders: eligible.map(p => p.id),
+                    turnCursor: 0
+                };
+
+                document.getElementById('auctionPropName').textContent = sp.name;
+                document.getElementById('auctionPropPriceTag').textContent = `List Price: $${sp.price}`;
+                document.getElementById('auctionModal').classList.remove('hidden');
+                processNextAuctionBidder();
+            });
+        }
+
+        function updateAuctionUI() {
+            const auc = gameState.activeAuction;
+            if (!auc) return;
+            document.getElementById('auctionHighBid').textContent = `$${auc.highBid}`;
+            const leader = auc.highBidderId !== null ? gameState.players[auc.highBidderId] : null;
+            document.getElementById('auctionHighBidder').textContent = leader ? `${leader.token} ${leader.name}` : 'Opening ($10 min)';
+
+            const listEl = document.getElementById('auctionBiddersList');
+            listEl.innerHTML = gameState.players.filter(p => !p.bankrupt).map(p => {
+                const inRace = auc.activeBidders.includes(p.id);
+                const isLeader = auc.highBidderId === p.id;
+                return `
+                    <div class="flex items-center justify-between px-3 py-1.5 rounded-lg text-xs ${inRace ? 'bg-slate-800 text-white' : 'bg-slate-950/60 text-slate-500 line-through'}">
+                        <span>${p.token} ${p.name} ($${p.cash})</span>
+                        <span class="font-bold ${isLeader ? 'text-emerald-400' : ''}">${isLeader ? 'HIGH BIDDER' : inRace ? 'Active' : 'Passed'}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function processNextAuctionBidder() {
+            const auc = gameState.activeAuction;
+            if (!auc) return;
+            updateAuctionUI();
+
+            // Check win conditions for auction
+            if (auc.activeBidders.length === 0) {
+                finishAuction();
+                return;
+            }
+            if (auc.activeBidders.length === 1 && auc.highBidderId === auc.activeBidders[0]) {
+                finishAuction();
+                return;
+            }
+
+            const bidderId = auc.activeBidders[auc.turnCursor % auc.activeBidders.length];
+            const bidder = gameState.players[bidderId];
+            const minNextBid = auc.highBid === 0 ? 10 : auc.highBid + 10;
+
+            if (bidder.cash < minNextBid) {
+                auc.activeBidders = auc.activeBidders.filter(id => id !== bidderId);
+                processNextAuctionBidder();
+                return;
+            }
+
+            if (bidder.type === 'human') {
+                document.getElementById('auctionHumanControls').classList.remove('hidden');
+                document.getElementById('auctionTurnPrompt').textContent = `${bidder.token} ${bidder.name}'s turn to bid (Min: $${minNextBid})`;
+            } else {
+                document.getElementById('auctionHumanControls').classList.add('hidden');
+                await sleep(550);
+                const maxWilling = evaluateAIPropertyMaxBid(bidder, auc.spaceId);
+                if (minNextBid <= maxWilling) {
+                    const step = (maxWilling - minNextBid > 60) ? 20 : 10;
+                    const bidAmt = Math.min(maxWilling, auc.highBid + step);
+                    auc.highBid = bidAmt;
+                    auc.highBidderId = bidder.id;
+                    auc.turnCursor++;
+                    SoundFX.bid();
+                    logEvent(`🔨 ${bidder.name} bids <strong>$${bidAmt}</strong>.`, 'ai');
+                } else {
+                    auc.activeBidders = auc.activeBidders.filter(id => id !== bidder.id);
+                    logEvent(`🔨 ${bidder.name} passes on the auction.`);
+                }
+                processNextAuctionBidder();
+            }
+        }
+
+        function submitAuctionBid(increment) {
+            const auc = gameState.activeAuction;
+            if (!auc) return;
+            const bidderId = auc.activeBidders[auc.turnCursor % auc.activeBidders.length];
+            const bidder = gameState.players[bidderId];
+            const newBid = auc.highBid + increment;
+            if (bidder.cash < newBid) return;
+
+            auc.highBid = newBid;
+            auc.highBidderId = bidder.id;
+            auc.turnCursor++;
+            SoundFX.bid();
+            processNextAuctionBidder();
+        }
+
+        function passAuctionBid() {
+            const auc = gameState.activeAuction;
+            if (!auc) return;
+            const bidderId = auc.activeBidders[auc.turnCursor % auc.activeBidders.length];
+            auc.activeBidders = auc.activeBidders.filter(id => id !== bidderId);
+            processNextAuctionBidder();
+        }
+
+        function finishAuction() {
+            const auc = gameState.activeAuction;
+            const sp = BOARD_SPACES[auc.spaceId];
+            document.getElementById('auctionModal').classList.add('hidden');
+
+            if (auc.highBidderId !== null && auc.highBid > 0) {
+                const winner = gameState.players[auc.highBidderId];
+                winner.cash -= auc.highBid;
+                gameState.properties[sp.id].ownerId = winner.id;
+                SoundFX.cash();
+                logEvent(`🔨 SOLD! <strong>${winner.name}</strong> won <strong>${sp.name}</strong> at auction for <strong>$${auc.highBid}</strong>!`, 'money');
+            } else {
+                logEvent(`🔨 Auction ended with no bids for ${sp.name}.`);
+            }
+
+            gameState.activeAuction = null;
+            updateAllUI();
+            if (auctionResolver) {
+                const r = auctionResolver;
+                auctionResolver = null;
+                r();
+            }
+        }
+
+        /* =================================================================
+           11. CHANCE & COMMUNITY CHEST CARDS
+        ================================================================= */
+        let cardAckResolver = null;
+
+        async function drawCard(player, deckType) {
+            const deck = deckType === 'chance' ? gameState.chanceDeck : gameState.chestDeck;
+            const card = deck.shift();
+            if (card.action !== 'jail_card') {
+                deck.push(card);
+            }
+
+            logEvent(`🃏 ${player.name} drew ${deckType === 'chance' ? 'Chance' : 'Community Chest'}: <em>"${card.text}"</em>`, 'system');
+
+            if (player.type === 'human') {
+                await new Promise(resolve => {
+                    cardAckResolver = resolve;
+                    const box = document.getElementById('cardModalBox');
+                    box.className = deckType === 'chance'
+                        ? 'bg-amber-50 text-slate-900 border-4 border-amber-500 rounded-2xl max-w-sm w-full p-6 shadow-2xl text-center'
+                        : 'bg-sky-50 text-slate-900 border-4 border-sky-500 rounded-2xl max-w-sm w-full p-6 shadow-2xl text-center';
+                    document.getElementById('cardDeckTitle').textContent = deckType === 'chance' ? 'CHANCE' : 'COMMUNITY CHEST';
+                    document.getElementById('cardText').textContent = card.text;
+                    document.getElementById('cardModal').classList.remove('hidden');
+                });
+            } else {
+                await sleep(700);
+            }
+
+            await executeCardEffect(player, card);
+        }
+
+        function acknowledgeCard() {
+            document.getElementById('cardModal').classList.add('hidden');
+            if (cardAckResolver) {
+                const r = cardAckResolver;
+                cardAckResolver = null;
+                r();
+            }
+        }
+
+        async function executeCardEffect(player, card) {
+            if (card.action === 'cash') {
+                if (card.amount >= 0) {
+                    player.cash += card.amount;
+                    SoundFX.cash();
+                } else {
+                    await chargePlayer(player.id, 'bank', Math.abs(card.amount), card.text);
+                }
+            } else if (card.action === 'jail_card') {
+                player.jailCards++;
+            } else if (card.action === 'gotojail') {
+                sendPlayerToJail(player);
+            } else if (card.action === 'move_to') {
+                await movePlayerDirectTo(player, card.target, true);
+            } else if (card.action === 'move_rel') {
+                await movePlayerSteps(player, card.offset);
+            } else if (card.action === 'nearest_railroad') {
+                const rrs = [5, 15, 25, 35];
+                const nextRR = rrs.find(r => r > player.position) ?? 5;
+                gameState.specialRentMultiplier = 2;
+                await movePlayerDirectTo(player, nextRR, true);
+                gameState.specialRentMultiplier = 1;
+            } else if (card.action === 'nearest_utility') {
+                const utils = [12, 28];
+                const nextUtil = utils.find(u => u > player.position) ?? 12;
+                gameState.specialRentMultiplier = 10;
+                await movePlayerDirectTo(player, nextUtil, true);
+                gameState.specialRentMultiplier = 1;
+            } else if (card.action === 'repairs') {
+                let totalCost = 0;
+                getPlayerProperties(player.id).forEach(({ state }) => {
+                    if (state.houses === 5) totalCost += card.hotel;
+                    else totalCost += state.houses * card.house;
+                });
+                if (totalCost > 0) {
+                    logEvent(`🔨 ${player.name} assessed $${totalCost} for property repairs.`, 'danger');
+                    await chargePlayer(player.id, 'bank', totalCost, 'Property Repairs');
+                }
+            } else if (card.action === 'pay_each') {
+                const others = gameState.players.filter(p => !p.bankrupt && p.id !== player.id);
+                for (const other of others) {
+                    await chargePlayer(player.id, other.id, card.amount, 'Chairman Dividend');
+                }
+            } else if (card.action === 'collect_each') {
+                const others = gameState.players.filter(p => !p.bankrupt && p.id !== player.id);
+                for (const other of others) {
+                    await chargePlayer(other.id, player.id, card.amount, 'Birthday Gift');
+                }
+            }
+            updateAllUI();
+        }
+
+        /* =================================================================
+           12. DEBT, LIQUIDATION & BANKRUPTCY RESOLUTION
+        ================================================================= */
+        async function chargePlayer(debtorId, creditorId, amount, reason, onResolved = null) {
+            const debtor = gameState.players[debtorId];
+            if (!debtor || debtor.bankrupt || amount <= 0) {
+                if (onResolved) await onResolved();
+                return;
+            }
+
+            if (debtor.cash >= amount) {
+                debtor.cash -= amount;
+                if (creditorId === 'bank') {
+                    if (gameState.rules.freeParking) gameState.freeParkingPot += amount;
+                } else {
+                    gameState.players[creditorId].cash += amount;
+                }
+                SoundFX.cash();
+                updateAllUI();
+                if (onResolved) await onResolved();
+                return;
+            }
+
+            // Insufficient cash!
+            if (debtor.type === 'ai') {
+                liquidateAIAssetsForCash(debtor, amount);
+                if (debtor.cash >= amount) {
+                    debtor.cash -= amount;
+                    if (creditorId === 'bank') {
+                        if (gameState.rules.freeParking) gameState.freeParkingPot += amount;
+                    } else {
+                        gameState.players[creditorId].cash += amount;
+                    }
+                    SoundFX.cash();
+                } else {
+                    processBankruptcy(debtorId, creditorId);
+                }
+                updateAllUI();
+                if (onResolved) await onResolved();
+            } else {
+                // Human debt resolution flow
+                gameState.pendingDebt = { debtorId, creditorId, amount, reason, onResolved };
+                updateAllUI();
+            }
+        }
+
+        async function retryDebtPayment() {
+            const d = gameState.pendingDebt;
+            if (!d) return;
+            const debtor = gameState.players[d.debtorId];
+            if (debtor.cash >= d.amount) {
+                gameState.pendingDebt = null;
+                await chargePlayer(d.debtorId, d.creditorId, d.amount, d.reason, d.onResolved);
+            } else {
+                logEvent(`⚠️ Still short $${d.amount - debtor.cash}. Mortgage more properties or sell buildings.`, 'danger');
+            }
+        }
+
+        function declareBankruptcy() {
+            const d = gameState.pendingDebt;
+            if (!d) return;
+            gameState.pendingDebt = null;
+            processBankruptcy(d.debtorId, d.creditorId);
+            updateAllUI();
+        }
+
+        function processBankruptcy(debtorId, creditorId) {
+            const debtor = gameState.players[debtorId];
+            debtor.bankrupt = true;
+            logEvent(`💀 <strong>${debtor.name}</strong> has declared BANKRUPTCY!`, 'danger');
+
+            const props = getPlayerProperties(debtorId);
+            if (creditorId !== 'bank' && gameState.players[creditorId] && !gameState.players[creditorId].bankrupt) {
+                const creditor = gameState.players[creditorId];
+                creditor.cash += Math.max(0, debtor.cash);
+                creditor.jailCards += debtor.jailCards;
+                props.forEach(({ space, state }) => {
+                    state.ownerId = creditor.id;
+                    state.houses = 0; // Buildings sold back on transfer
+                });
+                logEvent(`📦 All remaining assets of ${debtor.name} transferred to <strong>${creditor.name}</strong>.`, 'system');
+            } else {
+                props.forEach(({ state }) => {
+                    state.ownerId = null;
+                    state.houses = 0;
+                    state.mortgaged = false;
+                });
+            }
+            debtor.cash = 0;
+            debtor.jailCards = 0;
+
+            checkVictoryCondition();
+        }
+
+        function checkVictoryCondition() {
+            const alive = gameState.players.filter(p => !p.bankrupt);
+            if (alive.length === 1) {
+                const champ = alive[0];
+                SoundFX.win();
+                if (typeof confetti === 'function') {
+                    confetti({ particleCount: 140, spread: 80, origin: { y: 0.6 } });
+                }
+                document.getElementById('winnerAnnouncement').textContent =
+                    `${champ.token} ${champ.name} dominates the board with a Net Worth of $${calculateNetWorth(champ.id).toLocaleString()}!`;
+
+                const sorted = [...gameState.players].sort((a, b) => calculateNetWorth(b.id) - calculateNetWorth(a.id));
+                document.getElementById('finalStandings').innerHTML = sorted.map((pl, idx) => `
+                    <div class="flex justify-between items-center py-1 border-b border-slate-800 last:border-0">
+                        <span>#${idx + 1} ${pl.token} ${pl.name}</span>
+                        <span class="font-bold ${pl.bankrupt ? 'text-rose-400' : 'text-emerald-400'}">
+                            ${pl.bankrupt ? 'BANKRUPT' : '$' + calculateNetWorth(pl.id).toLocaleString()}
+                        </span>
+                    </div>
+                `).join('');
+
+                document.getElementById('victoryModal').classList.remove('hidden');
+                return true;
+            }
+            return false;
+        }
+
+        /* =================================================================
+           13. BUILDING HOUSES/HOTELS & MORTGAGE MANAGEMENT
+        ================================================================= */
+        function canBuildHouse(playerId, spaceId) {
+            const sp = BOARD_SPACES[spaceId];
+            const prop = gameState.properties[spaceId];
+            const player = gameState.players[playerId];
+            if (!sp || sp.type !== 'property' || prop.ownerId !== playerId || prop.mortgaged) return false;
+            if (prop.houses >= 5 || player.cash < sp.houseCost) return false;
+            if (!playerHasMonopoly(playerId, sp.group)) return false;
+
+            const groupSpaces = BOARD_SPACES.filter(s => s.group === sp.group);
+            // None in group may be mortgaged
+            if (groupSpaces.some(s => gameState.properties[s.id].mortgaged)) return false;
+            // Even-build rule: cannot exceed min houses in group by more than 1
+            const minHouses = Math.min(...groupSpaces.map(s => gameState.properties[s.id].houses));
+            return prop.houses === minHouses;
+        }
+
+        function canSellHouse(playerId, spaceId) {
+            const sp = BOARD_SPACES[spaceId];
+            const prop = gameState.properties[spaceId];
+            if (!sp || sp.type !== 'property' || prop.ownerId !== playerId || prop.houses <= 0) return false;
+            const groupSpaces = BOARD_SPACES.filter(s => s.group === sp.group);
+            const maxHouses = Math.max(...groupSpaces.map(s => gameState.properties[s.id].houses));
+            return prop.houses === maxHouses;
+        }
+
+        function buildHouseAction(spaceId) {
+            const p = getActivePlayer();
+            if (!canBuildHouse(p.id, spaceId)) return;
+            const sp = BOARD_SPACES[spaceId];
+            p.cash -= sp.houseCost;
+            gameState.properties[spaceId].houses++;
+            const lvl = gameState.properties[spaceId].houses === 5 ? 'a HOTEL' : `House #${gameState.properties[spaceId].houses}`;
+            SoundFX.cash();
+            logEvent(`🏗️ ${p.name} built ${lvl} on <strong>${sp.name}</strong> (-$${sp.houseCost}).`, 'money');
+            openManageModal();
+            updateAllUI();
+        }
+
+        function sellHouseAction(spaceId) {
+            const p = getActivePlayer();
+            if (!canSellHouse(p.id, spaceId)) return;
+            const sp = BOARD_SPACES[spaceId];
+            const refund = Math.floor(sp.houseCost / 2);
+            gameState.properties[spaceId].houses--;
+            p.cash += refund;
+            SoundFX.cash();
+            logEvent(`🏚️ ${p.name} sold a building on <strong>${sp.name}</strong> (+$${refund}).`, 'money');
+            openManageModal();
+            updateAllUI();
+        }
+
+        function toggleMortgageAction(spaceId) {
+            const p = getActivePlayer();
+            const sp = BOARD_SPACES[spaceId];
+            const prop = gameState.properties[spaceId];
+            if (!prop || prop.ownerId !== p.id) return;
+
+            if (!prop.mortgaged) {
+                // Cannot mortgage if any property in group has buildings
+                if (sp.type === 'property') {
+                    const groupHasHouses = BOARD_SPACES.filter(s => s.group === sp.group).some(s => gameState.properties[s.id].houses > 0);
+                    if (groupHasHouses) return;
+                }
+                const val = sp.price / 2;
+                prop.mortgaged = true;
+                p.cash += val;
+                SoundFX.cash();
+                logEvent(`🏦 ${p.name} mortgaged <strong>${sp.name}</strong> for $${val}.`, 'money');
+            } else {
+                const unmortgageCost = Math.ceil((sp.price / 2) * 1.1);
+                if (p.cash < unmortgageCost) return;
+                prop.mortgaged = false;
+                p.cash -= unmortgageCost;
+                SoundFX.cash();
+                logEvent(`🏦 ${p.name} unmortgaged <strong>${sp.name}</strong> for $${unmortgageCost}.`, 'money');
+            }
+            openManageModal();
+            updateAllUI();
+        }
+
+        function openManageModal() {
+            const p = getActivePlayer();
+            const props = getPlayerProperties(p.id).sort((a, b) => a.space.id - b.space.id);
+            const container = document.getElementById('managePropertiesList');
+
+            if (props.length === 0) {
+                container.innerHTML = `<div class="text-center text-slate-400 text-xs py-8">You do not own any properties yet.</div>`;
+            } else {
+                container.innerHTML = props.map(({ space, state }) => {
+                    const col = COLOR_MAP[space.group];
+                    const canBuild = canBuildHouse(p.id, space.id);
+                    const canSell = canSellHouse(p.id, space.id);
+                    const unmortCost = Math.ceil((space.price / 2) * 1.1);
+                    const groupHasHouses = space.type === 'property' &&
+                        BOARD_SPACES.filter(s => s.group === space.group).some(s => gameState.properties[s.id].houses > 0);
+                    const canMortgage = !state.mortgaged && !groupHasHouses;
+
+                    return `
+                        <div class="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-950 border border-slate-800">
+                            <div class="flex items-center gap-2.5">
+                                <span class="w-4 h-8 rounded" style="background:${col.hex}"></span>
+                                <div>
+                                    <div class="text-xs font-extrabold text-white">${space.name} ${state.mortgaged ? '<span class="text-rose-400 text-[10px]">(MORTGAGED)</span>' : ''}</div>
+                                    <div class="text-[11px] text-slate-400">
+                                        ${space.type === 'property'
+                                            ? `Buildings: ${state.houses === 5 ? '🏨 Hotel' : state.houses + ' Houses'} • House Cost: $${space.houseCost}`
+                                            : `Mortgage Value: $${space.price / 2}`}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                ${space.type === 'property' ? `
+                                    <button onclick="buildHouseAction(${space.id})" ${canBuild ? '' : 'disabled'}
+                                        class="px-2.5 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 text-white text-[11px] font-bold">
+                                        + Build ($${space.houseCost})
+                                    </button>
+                                    <button onclick="sellHouseAction(${space.id})" ${canSell ? '' : 'disabled'}
+                                        class="px-2.5 py-1.5 rounded bg-amber-600 hover:bg-amber-500 disabled:opacity-30 text-white text-[11px] font-bold">
+                                        - Sell (+$${space.houseCost / 2})
+                                    </button>
+                                ` : ''}
+                                <button onclick="toggleMortgageAction(${space.id})" ${(state.mortgaged ? p.cash >= unmortCost : canMortgage) ? '' : 'disabled'}
+                                    class="px-2.5 py-1.5 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-30 border border-slate-700 text-slate-200 text-[11px] font-bold">
+                                    ${state.mortgaged ? `Unmortgage ($${unmortCost})` : `Mortgage (+$${space.price / 2})`}
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+            document.getElementById('manageModal').classList.remove('hidden');
+        }
+
+        function closeManageModal() {
+            document.getElementById('manageModal').classList.add('hidden');
+        }
+
+        /* =================================================================
+           14. PLAYER-TO-PLAYER & PLAYER-TO-AI TRADING SYSTEM
+        ================================================================= */
+        function openTradeModal() {
+            const me = getActivePlayer();
+            const partners = gameState.players.filter(p => !p.bankrupt && p.id !== me.id);
+            if (partners.length === 0) return;
+
+            const sel = document.getElementById('tradePartnerSelect');
+            sel.innerHTML = partners.map(p => `<option value="${p.id}">${p.token} ${p.name} (Cash: $${p.cash})</option>`).join('');
+            renderTradeBuilder();
+            document.getElementById('tradeModal').classList.remove('hidden');
+        }
+
+        function closeTradeModal() {
+            document.getElementById('tradeModal').classList.add('hidden');
+        }
+
+        function renderTradeBuilder() {
+            const me = getActivePlayer();
+            const partnerId = parseInt(document.getElementById('tradePartnerSelect').value, 10);
+            const partner = gameState.players[partnerId];
+
+            document.getElementById('tradeOfferHeader').textContent = `${me.token} ${me.name} Offers (Max $${me.cash})`;
+            document.getElementById('tradeRequestHeader').textContent = `${partner.token} ${partner.name} Gives (Max $${partner.cash})`;
+
+            document.getElementById('tradeOfferCash').max = me.cash;
+            document.getElementById('tradeOfferCash').value = 0;
+            document.getElementById('tradeRequestCash').max = partner.cash;
+            document.getElementById('tradeRequestCash').value = 0;
+
+            document.getElementById('tradeOfferJailCardWrap').classList.toggle('hidden', me.jailCards <= 0);
+            document.getElementById('tradeRequestJailCardWrap').classList.toggle('hidden', partner.jailCards <= 0);
+
+            const renderPropCheckboxes = (playerId, clsName) => {
+                const props = getPlayerProperties(playerId).filter(({ state }) => state.houses === 0);
+                if (props.length === 0) return `<div class="text-[11px] text-slate-500 italic">No unimproved deeds available</div>`;
+                return props.map(({ space, state }) => `
+                    <label class="flex items-center gap-2 p-1.5 rounded bg-slate-900 border border-slate-800 text-xs cursor-pointer hover:border-slate-600">
+                        <input type="checkbox" value="${space.id}" class="${clsName} accent-emerald-500">
+                        <span class="w-2.5 h-2.5 rounded-full" style="background:${COLOR_MAP[space.group].hex}"></span>
+                        <span class="flex-1 truncate">${space.name}</span>
+                        <span class="text-[10px] text-slate-400">$${space.price}${state.mortgaged ? ' (M)' : ''}</span>
+                    </label>
+                `).join('');
+            };
+
+            document.getElementById('tradeOfferProps').innerHTML = renderPropCheckboxes(me.id, 'trade-offer-prop');
+            document.getElementById('tradeRequestProps').innerHTML = renderPropCheckboxes(partner.id, 'trade-req-prop');
+        }
+
+        async function submitTradeProposal() {
+            const me = getActivePlayer();
+            const partnerId = parseInt(document.getElementById('tradePartnerSelect').value, 10);
+            const partner = gameState.players[partnerId];
+
+            const offerCash = Math.max(0, Math.min(me.cash, parseInt(document.getElementById('tradeOfferCash').value, 10) || 0));
+            const reqCash = Math.max(0, Math.min(partner.cash, parseInt(document.getElementById('tradeRequestCash').value, 10) || 0));
+            const offerProps = [...document.querySelectorAll('.trade-offer-prop:checked')].map(el => parseInt(el.value, 10));
+            const reqProps = [...document.querySelectorAll('.trade-req-prop:checked')].map(el => parseInt(el.value, 10));
+            const offerJail = document.getElementById('tradeOfferJailCard')?.checked || false;
+            const reqJail = document.getElementById('tradeRequestJailCard')?.checked || false;
+
+            if (offerCash === 0 && reqCash === 0 && offerProps.length === 0 && reqProps.length === 0 && !offerJail && !reqJail) {
+                return;
+            }
+
+            const deal = { fromId: me.id, toId: partner.id, offerCash, reqCash, offerProps, reqProps, offerJail, reqJail };
+            closeTradeModal();
+
+            if (partner.type === 'ai') {
+                const accepted = await evaluateAITradeDecision(partner, deal);
+                if (accepted) {
+                    executeTradeDeal(deal);
+                } else {
+                    logEvent(`🤝 ${partner.name} rejected the trade proposal from ${me.name}.`, 'ai');
+                }
+            } else {
+                gameState.pendingHumanTrade = deal;
+                const offerNames = offerProps.map(id => BOARD_SPACES[id].name).join(', ') || 'None';
+                const reqNames = reqProps.map(id => BOARD_SPACES[id].name).join(', ') || 'None';
+                document.getElementById('incomingTradeSummary').innerHTML = `
+                    <strong>${me.name}</strong> offers <strong>$${offerCash}</strong> + [${offerNames}]${offerJail ? ' + Jail Card' : ''}<br><br>
+                    In exchange for <strong>${partner.name}</strong>'s <strong>$${reqCash}</strong> + [${reqNames}]${reqJail ? ' + Jail Card' : ''}.
+                `;
+                document.getElementById('incomingTradeModal').classList.remove('hidden');
+            }
+        }
+
+        function respondHumanTrade(accepted) {
+            document.getElementById('incomingTradeModal').classList.add('hidden');
+            if (accepted && gameState.pendingHumanTrade) {
+                executeTradeDeal(gameState.pendingHumanTrade);
+            } else if (gameState.pendingHumanTrade) {
+                logEvent(`🤝 Trade offer was declined.`);
+            }
+            gameState.pendingHumanTrade = null;
+        }
+
+        function executeTradeDeal(deal) {
+            const p1 = gameState.players[deal.fromId];
+            const p2 = gameState.players[deal.toId];
+
+            p1.cash = p1.cash - deal.offerCash + deal.reqCash;
+            p2.cash = p2.cash - deal.reqCash + deal.offerCash;
+
+            if (deal.offerJail && p1.jailCards > 0) { p1.jailCards--; p2.jailCards++; }
+            if (deal.reqJail && p2.jailCards > 0) { p2.jailCards--; p1.jailCards++; }
+
+            deal.offerProps.forEach(id => { gameState.properties[id].ownerId = p2.id; });
+            deal.reqProps.forEach(id => { gameState.properties[id].ownerId = p1.id; });
+
+            SoundFX.cash();
+            logEvent(`🤝 TRADE COMPLETED between <strong>${p1.name}</strong> and <strong>${p2.name}</strong>!`, 'system');
+            updateAllUI();
+        }
+
+        function handleEndTurn() {
+            const p = getActivePlayer();
+            if (!p || !gameState.hasRolled || gameState.pendingDebt) return;
+            advanceToNextPlayer();
+        }
+
+        function advanceToNextPlayer() {
+            if (checkVictoryCondition()) return;
+            gameState.doublesCount = 0;
+            let nextIdx = (gameState.currentPlayerIdx + 1) % gameState.players.length;
+            let loopGuard = 0;
+            while (gameState.players[nextIdx].bankrupt && loopGuard < 10) {
+                nextIdx = (nextIdx + 1) % gameState.players.length;
+                loopGuard++;
+            }
+            if (nextIdx <= gameState.currentPlayerIdx) {
+                gameState.turnCount++;
+            }
+            gameState.currentPlayerIdx = nextIdx;
+            updateAllUI();
+            triggerTurnStart();
+        }
+
+        /* =================================================================
+           15. CRITICAL-VALUE HEURISTIC + LIVE GEMINI API AI ENGINE
+        ================================================================= */
+        function setAIThought(htmlText, isThinking = false) {
+            document.getElementById('aiThoughtBox').innerHTML = htmlText;
+            document.getElementById('aiThinkingSpinner').classList.toggle('hidden', !isThinking);
+        }
+
+        // Critical-value strategic valuation of a property for a given AI player
+        function evaluateCriticalPropertyScore(aiPlayer, spaceId) {
+            const sp = BOARD_SPACES[spaceId];
+            if (!sp || !sp.price) return 0;
+            const heat = SPACE_HEAT_WEIGHT[spaceId] || 1.0;
+            let strategicMult = heat;
+
+            if (sp.group) {
+                const groupSpaces = BOARD_SPACES.filter(s => s.group === sp.group);
+                const ownedByMe = groupSpaces.filter(s => gameState.properties[s.id].ownerId === aiPlayer.id).length;
+                const ownedByOpp = groupSpaces.filter(s => {
+                    const o = gameState.properties[s.id].ownerId;
+                    return o !== null && o !== aiPlayer.id;
+                }).length;
+
+                // Completing a monopoly skyrockets value!
+                if (ownedByMe === groupSpaces.length - 1) strategicMult *= 2.35;
+                else if (ownedByMe > 0) strategicMult *= 1.45;
+
+                // Blocking an opponent's monopoly is high priority
+                if (ownedByOpp === groupSpaces.length - 1) strategicMult *= 1.85;
+            }
+            return sp.price * strategicMult;
+        }
+
+        function evaluateAIPropertyMaxBid(aiPlayer, spaceId) {
+            const intrinsic = evaluateCriticalPropertyScore(aiPlayer, spaceId);
+            const reserveFloor = 160; // Keep minimum liquidity safety buffer
+            const maxAffordable = Math.max(0, aiPlayer.cash - reserveFloor);
+            return Math.floor(Math.min(maxAffordable, intrinsic * 1.15));
+        }
+
+        async function queryGeminiDecision(promptContext, fallbackDecision) {
+            if (!gameState.geminiApiKey || gameState.geminiApiKey.length < 12) {
+                return fallbackDecision;
+            }
+            try {
+                setAIThought(`<span class="text-indigo-400 font-bold">Querying Gemini 2.5 Flash...</span><br>${promptContext.summary}`, true);
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(gameState.geminiApiKey)}`;
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [{
+                                text: `You are an elite, competitive Monopoly AI bot playing in a web game. Respond ONLY with valid JSON (no markdown fences).
+Context: ${JSON.stringify(promptContext)}
+Required JSON keys:
+- "decision": ${promptContext.allowedDecisions}
+- "thought": "1 short witty/strategic sentence explaining your move (max 140 chars)"`
+                            }]
+                        }],
+                        generationConfig: { temperature: 0.4, maxOutputTokens: 160 }
+                    })
+                });
+                if (!response.ok) throw new Error('Gemini API HTTP ' + response.status);
+                const data = await response.json();
+                const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                const cleanJson = rawText.replace(/```json|```/gi, '').trim();
+                const parsed = JSON.parse(cleanJson);
+                if (parsed && parsed.decision) {
+                    return { decision: parsed.decision, thought: parsed.thought || fallbackDecision.thought };
+                }
+            } catch (err) {
+                console.warn('Gemini fallback triggered:', err);
+            } finally {
+                document.getElementById('aiThinkingSpinner').classList.add('hidden');
+            }
+            return fallbackDecision;
+        }
+
+        async function promptAIBuyDecision(aiPlayer, space) {
+            const criticalValue = Math.round(evaluateCriticalPropertyScore(aiPlayer, space.id));
+            const safetyReserve = 140;
+            const shouldBuyHeuristic = (aiPlayer.cash - space.price >= safetyReserve) || (criticalValue > space.price * 1.6 && aiPlayer.cash >= space.price);
+
+            const fallback = {
+                decision: shouldBuyHeuristic ? 'BUY' : 'AUCTION',
+                thought: shouldBuyHeuristic
+                    ? `Critical EV score ($${criticalValue}) exceeds list price ($${space.price}) while preserving liquidity.`
+                    : `Preserving cash reserve ($${aiPlayer.cash}); sending ${space.name} to auction to pressure rivals.`
+            };
+
+            const res = await queryGeminiDecision({
+                botName: aiPlayer.name,
+                cash: aiPlayer.cash,
+                property: space.name,
+                price: space.price,
+                group: space.group,
+                heuristicEV: criticalValue,
+                summary: `Evaluating ${space.name} ($${space.price}) with $${aiPlayer.cash} cash.`,
+                allowedDecisions: '"BUY" or "AUCTION"'
+            }, fallback);
+
+            setAIThought(`<strong>${aiPlayer.token} ${aiPlayer.name}:</strong> "${res.thought}"`, false);
+
+            if (res.decision === 'BUY' && aiPlayer.cash >= space.price) {
+                aiPlayer.cash -= space.price;
+                gameState.properties[space.id].ownerId = aiPlayer.id;
+                SoundFX.cash();
+                logEvent(`🤖 <strong>${aiPlayer.name}</strong> bought <strong>${space.name}</strong> for $${space.price}. <em>"${res.thought}"</em>`, 'ai');
+                updateAllUI();
+            } else {
+                logEvent(`🤖 <strong>${aiPlayer.name}</strong> sends <strong>${space.name}</strong> to Auction! <em>"${res.thought}"</em>`, 'ai');
+                await runAuction(space.id);
+            }
+        }
+
+        function liquidateAIAssetsForCash(aiPlayer, targetAmount) {
+            // 1. Sell buildings evenly first
+            let safety = 0;
+            while (aiPlayer.cash < targetAmount && safety < 40) {
+                safety++;
+                const buildable = getPlayerProperties(aiPlayer.id).filter(({ space }) => canSellHouse(aiPlayer.id, space.id));
+                if (buildable.length === 0) break;
+                buildable.sort((a, b) => b.space.houseCost - a.space.houseCost);
+                const victim = buildable[0].space;
+                gameState.properties[victim.id].houses--;
+                aiPlayer.cash += Math.floor(victim.houseCost / 2);
+                logEvent(`🤖 ${aiPlayer.name} sold a building on ${victim.name} to raise cash.`, 'ai');
+            }
+
+            // 2. Mortgage single/low-heat properties next
+            const props = getPlayerProperties(aiPlayer.id)
+                .filter(({ state }) => !state.mortgaged && state.houses === 0)
+                .sort((a, b) => evaluateCriticalPropertyScore(aiPlayer, a.space.id) - evaluateCriticalPropertyScore(aiPlayer, b.space.id));
+
+            for (const { space, state } of props) {
+                if (aiPlayer.cash >= targetAmount) break;
+                state.mortgaged = true;
+                aiPlayer.cash += space.price / 2;
+                logEvent(`🤖 ${aiPlayer.name} mortgaged ${space.name} (+$${space.price / 2}).`, 'ai');
+            }
+        }
+
+        async function evaluateAITradeDecision(aiPlayer, deal) {
+            // Calculate net value gain for AI
+            let aiGain = deal.reqCash * -1 + deal.offerCash;
+            if (deal.offerJail) aiGain += 50;
+            if (deal.reqJail) aiGain -= 50;
+
+            deal.offerProps.forEach(id => { aiGain += evaluateCriticalPropertyScore(aiPlayer, id); });
+            deal.reqProps.forEach(id => { aiGain -= evaluateCriticalPropertyScore(aiPlayer, id) * 1.15; });
+
+            const fallback = {
+                decision: aiGain >= -15 ? 'ACCEPT' : 'REJECT',
+                thought: aiGain >= -15
+                    ? `Net strategic valuation (+$${Math.round(aiGain)}) improves my board equity.`
+                    : `Trade undervalues my deed leverage (Net EV: $${Math.round(aiGain)}).`
+            };
+
+            const res = await queryGeminiDecision({
+                botName: aiPlayer.name,
+                cash: aiPlayer.cash,
+                offerCash: deal.offerCash,
+                requestCash: deal.reqCash,
+                offerProps: deal.offerProps.map(id => BOARD_SPACES[id].name),
+                requestProps: deal.reqProps.map(id => BOARD_SPACES[id].name),
+                netStrategicScore: Math.round(aiGain),
+                summary: `Evaluating incoming trade proposal.`,
+                allowedDecisions: '"ACCEPT" or "REJECT"'
+            }, fallback);
+
+            setAIThought(`<strong>${aiPlayer.token} ${aiPlayer.name}:</strong> "${res.thought}"`, false);
+            return res.decision === 'ACCEPT';
+        }
+
+        async function runAIBuildAndUnmortgage(aiPlayer) {
+            // Unmortgage valuable properties if cash buffer > $400
+            const mortgaged = getPlayerProperties(aiPlayer.id).filter(({ state }) => state.mortgaged);
+            for (const { space, state } of mortgaged) {
+                const cost = Math.ceil((space.price / 2) * 1.1);
+                if (aiPlayer.cash - cost >= 350) {
+                    state.mortgaged = false;
+                    aiPlayer.cash -= cost;
+                    logEvent(`🤖 ${aiPlayer.name} unmortgaged <strong>${space.name}</strong>.`, 'ai');
+                }
+            }
+
+            // Build houses/hotels on monopolies prioritized by ROI per dollar
+            let builtAny = false;
+            let guard = 0;
+            while (guard < 15) {
+                guard++;
+                const candidates = getPlayerProperties(aiPlayer.id)
+                    .filter(({ space }) => canBuildHouse(aiPlayer.id, space.id) && (aiPlayer.cash - space.houseCost >= 220))
+                    .sort((a, b) => {
+                        const roiA = (a.space.rent[a.state.houses + 1] - a.space.rent[a.state.houses]) / a.space.houseCost;
+                        const roiB = (b.space.rent[b.state.houses + 1] - b.space.rent[b.state.houses]) / b.space.houseCost;
+                        return roiB - roiA;
+                    });
+
+                if (candidates.length === 0) break;
+                const best = candidates[0].space;
+                aiPlayer.cash -= best.houseCost;
+                gameState.properties[best.id].houses++;
+                builtAny = true;
+                const lvl = gameState.properties[best.id].houses === 5 ? 'a HOTEL' : `House #${gameState.properties[best.id].houses}`;
+                logEvent(`🏗️ <strong>${aiPlayer.name}</strong> developed ${lvl} on <strong>${best.name}</strong>!`, 'ai');
+            }
+            if (builtAny) {
+                SoundFX.cash();
+                updateAllUI();
+            }
+        }
+
+        async function runAITurn(aiPlayer) {
+            await sleep(650);
+
+            // 1. Pre-roll Jail strategy
+            if (aiPlayer.inJail) {
+                const unownedCount = Object.values(gameState.properties).filter(p => p.ownerId === null).length;
+                // Early game: pay bail immediately to snatch unowned deeds; Late game: stay in jail safely!
+                if (aiPlayer.jailCards > 0 && unownedCount > 8) {
+                    aiPlayer.jailCards--;
+                    aiPlayer.inJail = false;
+                    aiPlayer.jailTurns = 0;
+                    logEvent(`🎟️ ${aiPlayer.name} used Get Out of Jail Free early to capture properties!`, 'ai');
+                } else if (unownedCount > 10 && aiPlayer.cash >= 250) {
+                    aiPlayer.cash -= 50;
+                    if (gameState.rules.freeParking) gameState.freeParkingPot += 50;
+                    aiPlayer.inJail = false;
+                    aiPlayer.jailTurns = 0;
+                    SoundFX.cash();
+                    logEvent(`🔓 ${aiPlayer.name} paid $50 bail to stay aggressive in early expansion.`, 'ai');
+                }
+            }
+
+            // 2. Roll loop (handles doubles automatically)
+            while (!gameState.hasRolled && !aiPlayer.bankrupt && !checkVictoryCondition()) {
+                await handleRollDice();
+                await sleep(750);
+            }
+
+            // 3. Post-roll development (unmortgage & build houses/hotels)
+            if (!aiPlayer.bankrupt && !checkVictoryCondition()) {
+                await runAIBuildAndUnmortgage(aiPlayer);
+                await sleep(500);
+                advanceToNextPlayer();
+            }
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        /* =================================================================
+           16. INITIALIZATION ON PAGE LOAD
+        ================================================================= */
+        window.addEventListener('DOMContentLoaded', () => {
+            try {
+                const savedKey = localStorage.getItem('monopoly_gemini_api_key');
+                if (savedKey) saveGeminiKey(savedKey);
+            } catch (e) {}
+
+            renderBoard();
+            renderSetupSlots();
+            lucide.createIcons();
+        });
+    </script>
+</body>
+</html>
